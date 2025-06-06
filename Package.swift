@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "stinsen-navigation",
+    name: "stinsen",
     platforms: [
         .iOS(.v16)
     ],
