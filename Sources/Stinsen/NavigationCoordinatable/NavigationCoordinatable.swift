@@ -294,6 +294,10 @@ public extension NavigationCoordinatable {
         }
     }
 
+    func view() -> AnyView {
+        return AnyView(NavigationCoordinatableView(id: -1, coordinator: self))
+    }
+
     func customize(_ view: AnyView) -> some View {
         return view
     }
@@ -360,10 +364,6 @@ public extension NavigationCoordinatable {
         }
     }
     
-    func view() -> AnyView {
-        return AnyView(NavigationCoordinatableView(id: -1, coordinator: self))
-    }
-
     @discardableResult func popToRoot(_ action: (() -> ())? = nil) -> Self {
         self.popTo(-1, action)
         return self
@@ -471,7 +471,8 @@ public extension NavigationCoordinatable {
         return self
     }
 
-    @discardableResult private func _focusFirst<Input, Output: Coordinatable>(
+    @discardableResult 
+    private func _focusFirst<Input, Output: Coordinatable>(
         _ route: KeyPath<Self, Transition<Self, Presentation, Input, Output>>,
         _ input: (value: Input, comparator: ((Input, Input) -> Bool))?
     ) throws -> Output {
@@ -498,7 +499,8 @@ public extension NavigationCoordinatable {
         return value.element.presentable as! Output
     }
     
-    @discardableResult private func _focusFirst<Input, Output: View>(
+    @discardableResult 
+    private func _focusFirst<Input, Output: View>(
         _ route: KeyPath<Self, Transition<Self, Presentation, Input, Output>>,
         _ input: (value: Input, comparator: ((Input, Input) -> Bool))?
     ) throws -> Self {
@@ -525,19 +527,22 @@ public extension NavigationCoordinatable {
         return self
     }
     
-    @discardableResult func focusFirst<Output: Coordinatable>(
+    @discardableResult 
+    func focusFirst<Output: Coordinatable>(
         _ route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
     ) throws -> Output {
         try self._focusFirst(route, nil)
     }
     
-    @discardableResult func focusFirst<Output: View>(
+    @discardableResult 
+    func focusFirst<Output: View>(
         _ route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
     ) throws -> Self {
         try self._focusFirst(route, nil)
     }
     
-    @discardableResult func focusFirst<Input, Output: Coordinatable>(
+    @discardableResult 
+    func focusFirst<Input, Output: Coordinatable>(
         _ route: KeyPath<Self, Transition<Self, Presentation, Input, Output>>,
         _ input: Input,
         comparator: @escaping (Input, Input) -> Bool

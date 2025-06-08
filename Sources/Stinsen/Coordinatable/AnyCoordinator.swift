@@ -1,87 +1,112 @@
+//
+//  AnyCoordinator.swift
+//
+//
+//  Created on 06/08/2025.
+//
+//  A type-erased wrapper for the Coordinatable protocol that enables
+//  heterogeneous collections and protocol-oriented programming patterns
+//  while maintaining value semantics support.
+//
+
 import Foundation
 import SwiftUI
 
-// MARK: - Abstract base class
-fileprivate class _AnyCoordinatorBase: Coordinatable {
-    func view() -> AnyView {
-        fatalError("must override")
-    }
-    
-    var parent: ChildDismissable? {
-        get {
-            fatalError("must override")
-        } set {
-            fatalError("must override")
-        }
-    }
-    
-    func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
-        fatalError("must override")
-    }
-    
-    var id: String {
-        fatalError("must override")
-    }
-    
-    init() {
-        guard type(of: self) != _AnyCoordinatorBase.self else {
-            fatalError("_AnyCoordinatorBase instances can not be created; create a subclass instance instead")
-        }
-    }
-}
+// MARK: - AnyCoordinatorBox
 
-// MARK: - Box container class
-fileprivate final class _AnyCoordinatorBox<Base: Coordinatable>: _AnyCoordinatorBase {
+/// A private box container that wraps a concrete Coordinatable type.
+///
+/// This box pattern is necessary to properly handle both value and reference
+/// types that conform to Coordinatable. It maintains the wrapped coordinator's
+/// semantics while providing a uniform interface.
+fileprivate final class AnyCoordinatorBox<Base: Coordinatable>: Coordinatable {
+    /// The wrapped coordinator instance
     var base: Base
-    
-    init(_ base: Base) { self.base = base }
-    
-    override func view() -> AnyView {
-        self.base.view()
+
+    /// Initializes a new box with the given coordinator
+    /// - Parameter base: The coordinator to wrap
+    init(_ base: Base) {
+        self.base = base
     }
-    
-    override var parent: ChildDismissable? {
-        get {
-            base.parent
-        } set {
-            base.parent = newValue
-        }
+
+    /// The parent coordinator that can dismiss this coordinator
+    var parent: ChildDismissable? {
+        get { base.parent }
+        set { base.parent = newValue }
     }
-    
-    override func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
-        base.dismissChild(coordinator: coordinator, action: action)
-    }
-    
-    override var id: String {
+
+    /// The unique identifier for this coordinator
+    var id: String {
         base.id
     }
+
+    /// Creates and returns the SwiftUI view for this coordinator
+    /// - Returns: An AnyView containing the coordinator's view
+    func view() -> AnyView {
+        base.view()
+    }
+
+    /// Dismisses a child coordinator with an optional completion action
+    /// - Parameters:
+    ///   - coordinator: The child coordinator to dismiss
+    ///   - action: Optional closure to execute after dismissal
+    func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
+        base.dismissChild(coordinator: coordinator, action: action)
+    }
 }
 
-// MARK: - _AnyCoordinator Wrapper
+// MARK: - AnyCoordinator
+
+/// A type-erased wrapper for Coordinatable protocol.
+///
+/// `AnyCoordinator` allows you to work with heterogeneous collections of coordinators
+/// and use coordinators as properties without specifying their concrete types.
+/// It properly handles both value and reference type coordinators through an
+/// internal box pattern.
+///
+/// Example usage:
+/// ```swift
+/// class AppCoordinator {
+///     var currentCoordinator: AnyCoordinator?
+///
+///     func showLogin() {
+///         let loginCoordinator = LoginCoordinator()
+///         currentCoordinator = AnyCoordinator(loginCoordinator)
+///     }
+/// }
+/// ```
 public final class AnyCoordinator: Coordinatable {
+    /// The type-erased box containing the wrapped coordinator
+    private let box: any Coordinatable
+
+    /// Initializes a new AnyCoordinator with the given coordinator
+    /// - Parameter base: The coordinator to wrap
+    public init<Base: Coordinatable>(_ base: Base) {
+        box = AnyCoordinatorBox(base)
+    }
+
+    /// The parent coordinator that can dismiss this coordinator
     public var parent: ChildDismissable? {
-        get {
-            box.parent
-        } set {
-            box.parent = newValue
-        }
+        get { box.parent }
+        set { box.parent = newValue }
     }
-    
-    public func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
-        box.dismissChild(coordinator: coordinator, action: action)
-    }
-    
-    public func view() -> AnyView {
-        box.view()
-    }
-    
+
+    /// The unique identifier for this coordinator
     public var id: String {
         box.id
     }
 
-    private let box: _AnyCoordinatorBase
+    /// Creates and returns the SwiftUI view for this coordinator
+    /// - Returns: An AnyView containing the coordinator's view
+    public func view() -> AnyView {
+        box.view()
+    }
 
-    public init<Base: Coordinatable>(_ base: Base) {
-        box = _AnyCoordinatorBox(base)
+    /// Dismisses a child coordinator with an optional completion action
+    /// - Parameters:
+    ///   - coordinator: The child coordinator to dismiss
+    ///   - action: Optional closure to execute after dismissal
+    public func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
+        box.dismissChild(coordinator: coordinator, action: action)
     }
 }
