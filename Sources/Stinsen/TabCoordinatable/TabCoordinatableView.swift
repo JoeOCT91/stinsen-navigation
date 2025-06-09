@@ -30,7 +30,6 @@ struct TabCoordinatableView<T: TabCoordinatable, U: View>: View {
         self.coordinator = coordinator
         
         self.router = TabRouter(coordinator: coordinator.routerStorable)
-        RouterStore.shared.store(router: router)
         self.customize = customize
         self.child = coordinator.child
         

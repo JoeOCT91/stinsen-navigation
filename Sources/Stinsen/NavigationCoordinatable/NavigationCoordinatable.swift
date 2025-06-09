@@ -295,7 +295,7 @@ public extension NavigationCoordinatable {
     }
 
     func view() -> AnyView {
-        return AnyView(NavigationCoordinatableView(id: -1, coordinator: self))
+        return AnyView(NavigationCoordinatableView(coordinator: self))
     }
 
     func customize(_ view: AnyView) -> some View {

@@ -54,7 +54,7 @@ final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
     
     private func createPresentedView(from presentable: ViewPresentable, coordinator: T, nextId: Int, type: PresentationType) -> Presented {
         if presentable is AnyView {
-            let view = AnyView(NavigationCoordinatableView(id: nextId, coordinator: coordinator))
+            let view = AnyView(NavigationCoordinatableView(coordinator: coordinator))
             
             // For modal and fullScreen presentations, wrap in NavigationView
             if type == .modal || type == .fullScreen {

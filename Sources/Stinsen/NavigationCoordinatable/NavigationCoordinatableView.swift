@@ -2,121 +2,109 @@ import Foundation
 import SwiftUI
 import Combine
 
+/// A SwiftUI view that provides navigation functionality for coordinators
+///
+/// This view:
+/// - Uses SwiftUI's NavigationStack for push navigation
+/// - Handles sheets and full screen covers separately
+/// - Maintains compatibility with the existing coordinator architecture
+/// - Eliminates the need for PresentationHelper
 struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
-    var coordinator: T
-    private let id: Int
-    private let router: NavigationRouter<T>
 
-    @StateObject private var presentationHelper: PresentationHelper<T>
-    @ObservedObject var root: NavigationRoot
-    
-    var start: AnyView?
+    // MARK: - Properties
 
-    init(id: Int, coordinator: T) {
-        self.id = id
+    /// The coordinator managing navigation logic
+    let coordinator: T
+
+    /// Direct reference to the coordinator's navigation stack for observation
+    @ObservedObject private var stack: NavigationStack<T>
+
+    /// Router for handling navigation events
+    @StateObject private var router: NavigationRouter<T>
+
+    // MARK: - Initialization
+
+    /// Creates a new navigation view for the given coordinator
+    /// - Parameter coordinator: The coordinator to use for navigation
+    init(coordinator: T) {
         self.coordinator = coordinator
+        self.stack = coordinator.stack
 
-        // Initialize presentation helper
-        _presentationHelper = StateObject(
-            wrappedValue: PresentationHelper(
-                id: id,
-                coordinator: coordinator
-            )
+        // Initialize router with root ID (-1)
+        self._router = StateObject(
+            wrappedValue: NavigationRouter(id: -1, coordinator: coordinator.routerStorable)
         )
-        
-        self.router = NavigationRouter(
-            id: id,
-            coordinator: coordinator.routerStorable
-        )
-        
+
+        // Setup root if needed
         if coordinator.stack.root == nil {
             coordinator.setupRoot()
-        }
-
-        self.root = coordinator.stack.root
-
-        RouterStore.shared.store(router: router)
-        
-        if let presentation = coordinator.stack.value[safe: id] {
-            if let view = presentation.presentable as? AnyView {
-                self.start = view
-            } else {
-                fatalError("Can only show views")
-            }
-        } else if id == -1 {
-            self.start = nil
-        } else {
-            fatalError()
         }
     }
 
     var body: some View {
-        commonView
-            .environmentObject(router)
-            .background(
-                Color
-                    .clear
-                    .fullScreenCover(isPresented: Binding<Bool>.init(get: { () -> Bool in
-                        return presentationHelper.presented?.type.isFullScreen == true
-                    }, set: { _ in
-                        self.coordinator.appear(self.id)
-                    }), onDismiss: {
-                        self.coordinator.stack.dismissalAction[id]?()
-                        self.coordinator.stack.dismissalAction[id] = nil
-                    }, content: { () -> AnyView in
-                        return { () -> AnyView in
-                            if let view = presentationHelper.presented?.view {
-                                return AnyView(view)
-                            } else {
-                                return AnyView(EmptyView())
-                            }
-                        }()
-                    })
+        SwiftUI.NavigationStack(path: $stack.navigationPath) {
+            rootView
+                .navigationDestination(for: NavigationStackItem.self) { item in
+                    destinationView(for: item)
+                        .environmentObject(router)
+                }
+        }
+        .sheet(item: $stack.sheetItem, onDismiss: {
+            handleDismissal(for: stack.sheetItem)
+        }) { item in
+            // Sheets get their own NavigationStack
+            SwiftUI.NavigationStack {
+                destinationView(for: item)
                     .environmentObject(router)
-            )
+            }
+        }
+        .fullScreenCover(item: $stack.fullScreenCoverItem, onDismiss: {
+            handleDismissal(for: stack.fullScreenCoverItem)
+        }) { item in
+            // Full screen covers get their own NavigationStack
+            SwiftUI.NavigationStack {
+                destinationView(for: item)
+                    .environmentObject(router)
+            }
+        }
+        .environmentObject(router)
     }
-    
+
+    /// The root view of the navigation hierarchy
     @ViewBuilder
-    var commonView: some View {
-        (id == -1 ? AnyView(self.coordinator.customize(AnyView(root.item.child.view()))) : AnyView(self.start!))
-            .background(
-                NavigationLink(
-                    destination: { () -> AnyView in
-                        if let view = presentationHelper.presented?.view {
-                            return AnyView(view.onDisappear {
-                                self.coordinator.stack.dismissalAction[id]?()
-                                self.coordinator.stack.dismissalAction[id] = nil
-                            })
-                        } else {
-                            return AnyView(EmptyView())
-                        }
-                    }(),
-                    isActive: Binding<Bool>.init(get: { () -> Bool in
-                        return presentationHelper.presented?.type.isPush == true
-                    }, set: { _ in
-                        self.coordinator.appear(self.id)
-                    }),
-                    label: {
-                        EmptyView()
-                    }
-                )
-                .hidden()
-            )
-            .sheet(isPresented: Binding<Bool>.init(get: { () -> Bool in
-                return presentationHelper.presented?.type.isModal == true
-            }, set: { _ in
-                self.coordinator.appear(self.id)
-            }), onDismiss: {
-                self.coordinator.stack.dismissalAction[id]?()
-                self.coordinator.stack.dismissalAction[id] = nil
-            }, content: { () -> AnyView in
-                return { () -> AnyView in
-                    if let view = presentationHelper.presented?.view {
-                        return AnyView(view)
-                    } else {
-                        return AnyView(EmptyView())
-                    }
-                }()
-            })
+    private var rootView: some View {
+        if let root = stack.root {
+            coordinator.customize(AnyView(root.item.child.view()))
+        }
+    }
+
+    /// Creates the appropriate view for a navigation item
+    /// - Parameter item: The navigation stack item to display
+    /// - Returns: The view to display
+    @ViewBuilder
+    private func destinationView(for item: NavigationStackItem) -> some View {
+        Group {
+            if let view = item.presentable as? AnyView {
+                view
+            } else {
+                AnyView(item.presentable.view())
+            }
+        }
+        .onDisappear {
+            handleDismissal(for: item)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    /// Handles cleanup when a view is dismissed
+    /// - Parameter item: The item being dismissed
+    private func handleDismissal(for item: NavigationStackItem?) {
+        guard let item = item else { return }
+
+        // Execute any dismissal action
+        stack.dismissalAction[item.keyPath]?()
+        // Clean up the action
+        stack.dismissalAction[item.keyPath] = nil
     }
 }
