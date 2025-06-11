@@ -2,12 +2,13 @@ import Foundation
 import SwiftUI
 
 struct TabCoordinatableView<T: TabCoordinatable, U: View>: View {
-    private var coordinator: T
+    @StateObject var child: TabChild
+
+    private let coordinator: T
     private let router: TabRouter<T>
-    @ObservedObject var child: TabChild
-    private var customize: (AnyView) -> U
     private var views: [AnyView]
-    
+    private var customize: (AnyView) -> U
+
     var body: some View {
         customize(
             AnyView(
@@ -27,13 +28,14 @@ struct TabCoordinatableView<T: TabCoordinatable, U: View>: View {
     }
     
     init(paths: [AnyKeyPath], coordinator: T, customize: @escaping (AnyView) -> U) {
+        self._child = StateObject(wrappedValue: coordinator.child)
+
         self.coordinator = coordinator
         
         self.router = TabRouter(coordinator: coordinator.routerStorable)
         RouterStore.shared.store(router: router)
         self.customize = customize
-        self.child = coordinator.child
-        
+
         if coordinator.child.allItems == nil {
             coordinator.setupAllTabs()
         }
