@@ -41,7 +41,7 @@ struct TabCoordinatableView<T: TabCoordinatable, U: View>: View {
         }
 
         self.views = coordinator.child.allItems.map {
-            $0.presentable.view()
+            AnyView($0.presentable.view())
         }
     }
 }
