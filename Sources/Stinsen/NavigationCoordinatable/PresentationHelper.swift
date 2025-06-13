@@ -8,7 +8,7 @@ final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
     public let navigationStack: NavigationStack<T>
     private var cancellables = Set<AnyCancellable>()
     
-    @Published var presented: Presented?
+    @Published var presented: Presented<AnyView>?
 
     // MARK: - Initialization
     init(id: Int, coordinator: T) {
@@ -43,16 +43,13 @@ final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
     // MARK: - View Creation Methods
     private func createNavigationView(_ view: AnyView) -> AnyView {
         AnyView(
-            NavigationView(
-                content: {
-                    view.navigationBarHidden(true)
-                }
-            )
-            .navigationViewStyle(StackNavigationViewStyle())
+            SwiftUI.NavigationStack {
+                view
+            }
         )
     }
     
-    private func createPresentedView(from presentable: ViewPresentable, coordinator: T, nextId: Int, type: PresentationType) -> Presented {
+    private func createPresentedView(from presentable: any ViewPresentable, coordinator: T, nextId: Int, type: PresentationType) -> Presented<AnyView> {
         if presentable is AnyView {
             let view = AnyView(NavigationCoordinatableView(id: nextId, coordinator: coordinator))
             

@@ -34,9 +34,3 @@ struct HomeScreen: View {
     }
 }
 
-struct HomeScreen_Previews: PreviewProvider {
-    static var previews: some View {
-        HomeScreen(todosStore: TodosStore(user: User(username: "user@example.com", accessToken: UUID().uuidString)))
-    }
-}
-
