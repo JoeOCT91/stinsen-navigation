@@ -106,6 +106,18 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
         return root
     }
 
+    /// Safely accesses the root, ensuring it's initialized first.
+    ///
+    /// This method ensures the root is properly initialized before returning it.
+    /// It's safer than the `root` property for use during coordinator switching.
+    ///
+    /// - Parameter coordinator: The coordinator instance to use for root creation if needed
+    /// - Returns: The NavigationRoot instance for this stack
+    func safeRoot(with coordinator: T) -> NavigationRoot {
+        ensureRoot(with: coordinator)
+        return root
+    }
+
     /// Ensures the root navigation item is initialized with the specified coordinator.
     ///
     /// Creates the root NavigationRoot instance if it doesn't already exist, using
@@ -134,13 +146,26 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
         _root = NavigationStack.createRoot(coordinator: coordinator, initial: initial, initialInput: initialInput)
     }
 
+    /// Resets the root to allow for root switching.
+    ///
+    /// This method should be called when switching roots to allow for proper re-initialization.
+    /// After calling this, the next access to root will trigger re-initialization.
+    ///
+    /// - Warning: This should only be called during root switching operations
+    func resetRoot() {
+        #if DEBUG
+            print("🔄 NavigationStack.resetRoot: Clearing root for re-initialization")
+        #endif
+        _root = nil
+    }
+
     /// Creates a NavigationRoot for the given coordinator and initial route.
     private static func createRoot(coordinator: T, initial: PartialKeyPath<T>, initialInput: Any?) -> NavigationRoot {
         let routeValue = coordinator[keyPath: initial]
         let presentable: any ViewPresentable
 
-        // Try to cast to NavigationOutputable (for @NavigationRoute)
-        if let transition = routeValue as? NavigationOutputable {
+        // Try to cast to TypeSafeNavigationOutputable (for @NavigationRoute)
+        if let transition = routeValue as? TypeSafeNavigationOutputable {
             presentable = transition.using(coordinator: coordinator, input: initialInput as Any)
         } else {
             // Fallback for @Root property wrapper
@@ -158,7 +183,7 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
     }
 
     /// Finds the transition from a @Root property wrapper using reflection.
-    private static func findRootTransition(in coordinator: T, for keyPath: PartialKeyPath<T>) -> NavigationOutputable {
+    private static func findRootTransition(in coordinator: T, for keyPath: PartialKeyPath<T>) -> TypeSafeNavigationOutputable {
         let mirror = Mirror(reflecting: coordinator)
 
         // Look for Root property wrappers in the coordinator

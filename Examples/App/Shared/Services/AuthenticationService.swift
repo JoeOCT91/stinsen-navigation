@@ -1,6 +1,6 @@
 import Foundation
 
-class AuthenticationService: ObservableObject {
+final class AuthenticationService: ObservableObject {
     enum Status: Equatable {
         case authenticated(User)
         case unauthenticated

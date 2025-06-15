@@ -14,16 +14,18 @@ extension AuthenticatedCoordinator {
         }
     }
 
-    func makeHome() -> HomeCoordinator {
-        return (HomeCoordinator(todosStore: todosStore))
+    func makeHome() -> NavigationViewCoordinator<HomeCoordinator> {
+        return NavigationViewCoordinator(HomeCoordinator(todosStore: todosStore))
     }
 
-    func makeTodos() -> NavigationViewCoordinator<TodosCoordinator> {
-        return NavigationViewCoordinator(TodosCoordinator(todosStore: todosStore))
-    }
+
 
     func makeProfile() -> NavigationViewCoordinator<ProfileCoordinator> {
         return NavigationViewCoordinator(ProfileCoordinator(user: user))
+    }
+
+    func makeTodos() -> TodosCoordinator {
+        return (TodosCoordinator(todosStore: todosStore))
     }
 
     @ViewBuilder

@@ -39,7 +39,6 @@
 		EB42851D272AA20100911C54 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB428469272AA20100911C54 /* DeepLink.swift */; };
 		EB428521272AA20100911C54 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB42846A272AA20100911C54 /* User.swift */; };
 		EB428525272AA20100911C54 /* Todo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB42846B272AA20100911C54 /* Todo.swift */; };
-		EB428529272AA20100911C54 /* View+.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB42846D272AA20100911C54 /* View+.swift */; };
 		EB42852D272AA20100911C54 /* InfoText.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB42846F272AA20100911C54 /* InfoText.swift */; };
 		EB428531272AA20100911C54 /* RoundedTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB428470272AA20100911C54 /* RoundedTextField.swift */; };
 		EB428535272AA20100911C54 /* RoundedButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB428471272AA20100911C54 /* RoundedButton.swift */; };
@@ -96,7 +95,6 @@
 		EB428469272AA20100911C54 /* DeepLink.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
 		EB42846A272AA20100911C54 /* User.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		EB42846B272AA20100911C54 /* Todo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Todo.swift; sourceTree = "<group>"; };
-		EB42846D272AA20100911C54 /* View+.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "View+.swift"; sourceTree = "<group>"; };
 		EB42846F272AA20100911C54 /* InfoText.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InfoText.swift; sourceTree = "<group>"; };
 		EB428470272AA20100911C54 /* RoundedTextField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoundedTextField.swift; sourceTree = "<group>"; };
 		EB428471272AA20100911C54 /* RoundedButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RoundedButton.swift; sourceTree = "<group>"; };
@@ -192,7 +190,6 @@
 				EB428440272AA20100911C54 /* Coordinators */,
 				EB428467272AA20100911C54 /* Assets.xcassets */,
 				EB428468272AA20100911C54 /* Models */,
-				EB42846C272AA20100911C54 /* Extensions */,
 				EB42846E272AA20100911C54 /* Components */,
 				EB428472272AA20100911C54 /* Main */,
 				EB428474272AA20100911C54 /* Services */,
@@ -337,14 +334,6 @@
 				EB42846B272AA20100911C54 /* Todo.swift */,
 			);
 			path = Models;
-			sourceTree = "<group>";
-		};
-		EB42846C272AA20100911C54 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				EB42846D272AA20100911C54 /* View+.swift */,
-			);
-			path = Extensions;
 			sourceTree = "<group>";
 		};
 		EB42846E272AA20100911C54 /* Components */ = {
@@ -532,7 +521,6 @@
 				EB42853D272AA20100911C54 /* TodosStore.swift in Sources */,
 				EB428525272AA20100911C54 /* Todo.swift in Sources */,
 				EB4284DB272AA20100911C54 /* AuthenticatedCoordinator+Factory.swift in Sources */,
-				EB428529272AA20100911C54 /* View+.swift in Sources */,
 				EB4284B7272AA20100911C54 /* HomeScreen.swift in Sources */,
 				EB4284DF272AA20100911C54 /* ProfileScreen.swift in Sources */,
 				EB4284AF272AA20100911C54 /* HomeCoordinator+Factory.swift in Sources */,
@@ -679,7 +667,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = iOS/iOS.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				DEVELOPMENT_TEAM = 5FFZ3X9GMU;
+				DEVELOPMENT_TEAM = QP638232SP;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
@@ -701,7 +689,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = iOS/iOS.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				DEVELOPMENT_TEAM = 5FFZ3X9GMU;
+				DEVELOPMENT_TEAM = QP638232SP;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = iOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;

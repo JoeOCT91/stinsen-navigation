@@ -1,12 +1,7 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Navigation Output Protocols
-
-/// Type-erased protocol for creating presentables (used for existential types)
-public protocol NavigationOutputable {
-    func using(coordinator: Any, input: Any) -> any ViewPresentable
-}
+// MARK: - Navigation Output Protocol
 
 /// Type-safe protocol for creating presentables (used with generics)
 public protocol TypeSafeNavigationOutputable {
@@ -24,10 +19,50 @@ public struct Presentation: RouteType {
 
 // MARK: - Type-Safe Navigation Wrapper
 
-public class TypeSafeNavigationWrapper {
+public class TypeSafeNavigationWrapper<ViewType: View> {
+    private let createViewClosure: () -> ViewType
+    private let routeTypeClosure: () -> Any
+    private let outputableClosure: () -> any TypeSafeNavigationOutputable
+
+    init<T: NavigationCoordinatable, U: RouteType, Input, Output: ViewPresentable>(
+        coordinator: T,
+        input: Input,
+        content: NavigationContent<T, U, Input, Output>
+    ) where Output.PresentedView == ViewType {
+        createViewClosure = {
+            let presentable = content.createPresentable(for: coordinator, input: input)
+            return presentable.view()
+        }
+        routeTypeClosure = {
+            content.getRouteType()
+        }
+        outputableClosure = {
+            content
+        }
+    }
+
+    /// Create view using preserved type information
+    func createView() -> ViewType {
+        return createViewClosure()
+    }
+
+    /// Get route type
+    func getRouteType() -> Any {
+        return routeTypeClosure()
+    }
+
+    /// Get type-safe outputable
+    func getOutputable() -> any TypeSafeNavigationOutputable {
+        return outputableClosure()
+    }
+}
+
+// MARK: - Type-Erased Navigation Wrapper
+
+public class AnyNavigationWrapper {
     private let createViewClosure: () -> AnyView
     private let routeTypeClosure: () -> Any
-    private let outputableClosure: () -> any NavigationOutputable
+    private let outputableClosure: () -> any TypeSafeNavigationOutputable
 
     init<T: NavigationCoordinatable, U: RouteType, Input, Output: ViewPresentable>(
         coordinator: T,
@@ -46,7 +81,7 @@ public class TypeSafeNavigationWrapper {
         }
     }
 
-    /// Create view using preserved type information
+    /// Create view using preserved type information (type-erased for collection storage)
     func createView() -> AnyView {
         return createViewClosure()
     }
@@ -56,8 +91,8 @@ public class TypeSafeNavigationWrapper {
         return routeTypeClosure()
     }
 
-    /// Get outputable for legacy compatibility
-    func getOutputable() -> any NavigationOutputable {
+    /// Get type-safe outputable
+    func getOutputable() -> any TypeSafeNavigationOutputable {
         return outputableClosure()
     }
 }
@@ -89,7 +124,7 @@ public class NavigationContent<T: NavigationCoordinatable, U: RouteType, Input, 
     }
 
     /// Create type-safe wrapper preserving specific types
-    func createWrapper(for coordinator: T, input: Input) -> TypeSafeNavigationWrapper {
+    func createWrapper(for coordinator: T, input: Input) -> TypeSafeNavigationWrapper<Output.PresentedView> {
         return TypeSafeNavigationWrapper(coordinator: coordinator, input: input, content: self)
     }
 
@@ -99,17 +134,7 @@ public class NavigationContent<T: NavigationCoordinatable, U: RouteType, Input, 
     }
 }
 
-// MARK: - NavigationOutputable Implementation
-
-extension NavigationContent: NavigationOutputable {
-    public func using(coordinator: Any, input: Any) -> any ViewPresentable {
-        if Input.self == Void.self {
-            return closure(coordinator as! T)(() as! Input)
-        } else {
-            return closure(coordinator as! T)(input as! Input)
-        }
-    }
-}
+// MARK: - NavigationOutputable removed - using only TypeSafeNavigationOutputable
 
 // MARK: - TypeSafeNavigationOutputable Implementation
 
@@ -226,20 +251,11 @@ extension NavigationContent: TypeSafeNavigationOutputable {
 
 // MARK: - Legacy Transition Support (for backward compatibility)
 
-public struct Transition<T: NavigationCoordinatable, U: RouteType, Input, Output: ViewPresentable>: NavigationOutputable, TypeSafeNavigationOutputable {
+public struct Transition<T: NavigationCoordinatable, U: RouteType, Input, Output: ViewPresentable>: TypeSafeNavigationOutputable {
     public typealias PresentableType = Output
 
     let type: U
     let closure: (T) -> ((Input) -> Output)
-
-    // Type-erased method for NavigationOutputable
-    public func using(coordinator: Any, input: Any) -> any ViewPresentable {
-        if Input.self == Void.self {
-            return closure(coordinator as! T)(() as! Input)
-        } else {
-            return closure(coordinator as! T)(input as! Input)
-        }
-    }
 
     // Type-safe method for TypeSafeNavigationOutputable
     public func using(coordinator: Any, input: Any) -> Output {
@@ -255,60 +271,66 @@ public struct Transition<T: NavigationCoordinatable, U: RouteType, Input, Output
 
 /// Protocol for accessing the transition from Root property wrappers
 public protocol RootTransitionProvider {
-    func getTransition() -> NavigationOutputable
+    func getTransition() -> TypeSafeNavigationOutputable
 }
 
 // MARK: - Root Property Wrapper (for Root Routes)
 
 @propertyWrapper public struct Root<T: NavigationCoordinatable, Input, Output: ViewPresentable>: RootTransitionProvider {
-    public let wrappedValue: (T) -> (Input) -> Output
-    public let transition: Transition<T, RootSwitch, Input, Output>
+    private let closure: (T) -> (Input) -> Output
+    private let transition: Transition<T, RootSwitch, Input, Output>
+
+    public var wrappedValue: Transition<T, RootSwitch, Input, Output> {
+        return transition
+    }
+
+    // MARK: - Safe Direct Initializers (use @Root(closure) syntax)
 
     // Root - Coordinatable without input (Void)
     public init(
-        wrappedValue: @escaping (T) -> () -> Output
+        _ closureValue: @escaping (T) -> () -> Output
     ) where Input == Void, Output: Coordinatable {
-        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { (_: Input) in wrappedValue(coordinator)() } }
-        self.wrappedValue = adaptedClosure
+        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { (_: Input) in closureValue(coordinator)() } }
+        closure = adaptedClosure
         transition = Transition(type: RootSwitch(), closure: adaptedClosure)
     }
 
     // Root - Coordinatable with input
     public init(
-        wrappedValue: @escaping (T) -> (Input) -> Output
+        _ closureValue: @escaping (T) -> (Input) -> Output
     ) where Output: Coordinatable {
-        self.wrappedValue = wrappedValue
-        transition = Transition(type: RootSwitch(), closure: wrappedValue)
+        closure = closureValue
+        transition = Transition(type: RootSwitch(), closure: closureValue)
     }
 
     // Root - View as AnyView without input (Void)
     public init<ViewOutput: View>(
-        wrappedValue: @escaping (T) -> () -> ViewOutput
+        _ closureValue: @escaping (T) -> () -> ViewOutput
     ) where Input == Void, Output == AnyView {
-        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { (_: Input) in AnyView(wrappedValue(coordinator)()) } }
-        self.wrappedValue = adaptedClosure
+        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { (_: Input) in AnyView(closureValue(coordinator)()) } }
+        closure = adaptedClosure
         transition = Transition(type: RootSwitch(), closure: adaptedClosure)
     }
 
     // Root - View as AnyView with input
     public init<ViewOutput: View>(
-        wrappedValue: @escaping (T) -> (Input) -> ViewOutput
+        _ closureValue: @escaping (T) -> (Input) -> ViewOutput
     ) where Output == AnyView {
-        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { input in AnyView(wrappedValue(coordinator)(input)) } }
-        self.wrappedValue = adaptedClosure
+        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { input in AnyView(closureValue(coordinator)(input)) } }
+        closure = adaptedClosure
         transition = Transition(type: RootSwitch(), closure: adaptedClosure)
     }
 
     public var projectedValue: NavigationContent<T, RootSwitch, Input, Output> {
         NavigationContent(
             type: RootSwitch(),
-            closure: wrappedValue
+            closure: closure
         )
     }
 
     // MARK: - RootTransitionProvider Conformance
 
-    public func getTransition() -> NavigationOutputable {
+    public func getTransition() -> any TypeSafeNavigationOutputable {
         return transition
     }
 }
@@ -317,17 +339,22 @@ public protocol RootTransitionProvider {
 
 public protocol NavigationRouteCollectable {
     associatedtype CoordinatorType: NavigationCoordinatable
-    func createWrapper(for coordinator: CoordinatorType, input: Any) -> TypeSafeNavigationWrapper
+    func createWrapper(for coordinator: CoordinatorType, input: Any) -> AnyNavigationWrapper
 }
 
 extension NavigationContent: NavigationRouteCollectable {
     public typealias CoordinatorType = T
 
-    public func createWrapper(for coordinator: T, input: Any) -> TypeSafeNavigationWrapper {
+    public func createWrapper(for coordinator: T, input: Any) -> AnyNavigationWrapper {
         if Input.self == Void.self {
-            return createWrapper(for: coordinator, input: () as! Input)
+            return createAnyWrapper(for: coordinator, input: () as! Input)
         } else {
-            return createWrapper(for: coordinator, input: input as! Input)
+            return createAnyWrapper(for: coordinator, input: input as! Input)
         }
+    }
+
+    /// Create type-erased wrapper for collection storage
+    private func createAnyWrapper(for coordinator: T, input: Input) -> AnyNavigationWrapper {
+        return AnyNavigationWrapper(coordinator: coordinator, input: input, content: self)
     }
 }

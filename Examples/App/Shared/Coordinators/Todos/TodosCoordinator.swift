@@ -5,7 +5,7 @@ import SwiftUI
 final class TodosCoordinator: NavigationCoordinatable {
     var stack = NavigationStack(initial: \TodosCoordinator.start)
 
-    @Root var start = makeStart
+    @Root(makeStart) var start
     @NavigationRoute(.push) var todo = makeTodo
     @NavigationRoute(.modal) var createTodo = makeCreateTodo
 

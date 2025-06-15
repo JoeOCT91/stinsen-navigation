@@ -12,9 +12,8 @@ struct TodoScreen: View {
         ScrollView {
             InfoText("This is the details screen for your todo.")
         }
-        .navigationTitle(with: todosStore[todoId].name)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar(.hidden, for: .tabBar)
+        .navigationTitle("ToDo Screen")
     }
     
     var button: some View {

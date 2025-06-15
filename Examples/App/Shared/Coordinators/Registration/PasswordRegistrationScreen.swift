@@ -23,7 +23,6 @@ struct PasswordRegistrationScreen: View {
                 }
             }
         }
-        .navigationTitle(with: "Register user")
     }
     
     init(services: UnauthenticatedServices, username: String) {

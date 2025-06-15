@@ -15,13 +15,23 @@ public class NavigationRoot: ObservableObject {
     ///
     /// Changes to this property trigger SwiftUI view updates for any views
     /// observing this NavigationRoot instance.
-    @Published var item: NavigationRootItem
+    @Published var item: NavigationRootItem {
+        didSet {
+            print("🔄 NavigationRoot.item changed from instanceId \(oldValue.instanceId.uuidString.prefix(8)) to \(item.instanceId.uuidString.prefix(8))")
+            print("🔄 Old keyPath: \(oldValue.keyPath), New keyPath: \(item.keyPath)")
+            // Force explicit objectWillChange notification to ensure UI updates
+            DispatchQueue.main.async { [weak self] in
+                self?.objectWillChange.send()
+            }
+        }
+    }
 
     /// Initializes a new NavigationRoot with the specified root item.
     ///
     /// - Parameter item: The NavigationRootItem that represents the initial route
     init(item: NavigationRootItem) {
         self.item = item
+        print("🏠 NavigationRoot initialized with keyPath \(item.keyPath), instanceId \(item.instanceId.uuidString.prefix(8))")
     }
 }
 
@@ -43,7 +53,10 @@ struct NavigationRootItem {
     let input: Any?
 
     /// The type-safe presentable wrapper that preserves associated type information
-    let childWrapper: TypeSafePresentableWrapper
+    let childWrapper: AnyPresentableWrapper
+
+    /// Unique identifier for this item instance to ensure proper change detection
+    let instanceId: UUID
 
     /// Computed property for backward compatibility
     var child: any ViewPresentable {
@@ -59,6 +72,8 @@ struct NavigationRootItem {
     init<P: ViewPresentable>(keyPath: Int, input: Any?, child: P) {
         self.keyPath = keyPath
         self.input = input
-        childWrapper = TypeSafePresentableWrapper(child)
+        childWrapper = AnyPresentableWrapper(child)
+        instanceId = UUID()
+        print("🆕 Created NavigationRootItem with keyPath \(keyPath), instanceId \(instanceId.uuidString.prefix(8))")
     }
 }

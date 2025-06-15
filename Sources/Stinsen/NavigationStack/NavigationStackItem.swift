@@ -14,21 +14,21 @@ import SwiftUI
 /// - **Input parameter storage**: Maintains reference to creation parameters
 /// - **SwiftUI compatibility**: Conforms to Identifiable and Hashable
 /// - **Associated type preservation**: Maintains type information where possible
-struct NavigationStackItem {
+public struct NavigationStackItem {
     /// The presentation type that determines how this item should be displayed
-    let presentationType: PresentationType
+    public let presentationType: PresentationType
 
     /// The type-safe presentable wrapper that preserves associated type information
-    let presentableWrapper: TypeSafePresentableWrapper
+    public let presentableWrapper: AnyPresentableWrapper
 
     /// Unique identifier derived from the route's KeyPath hash
-    let keyPath: Int
+    public let keyPath: Int
 
     /// Optional input parameters passed to the route creation closure
-    let input: Any?
+    public let input: Any?
 
     /// Computed property for backward compatibility
-    var presentable: any ViewPresentable {
+    public var presentable: any ViewPresentable {
         return presentableWrapper.presentable
     }
 
@@ -46,7 +46,7 @@ struct NavigationStackItem {
         input: Any?
     ) {
         self.presentationType = presentationType
-        presentableWrapper = TypeSafePresentableWrapper(presentable)
+        presentableWrapper = AnyPresentableWrapper(presentable)
         self.keyPath = keyPath
         self.input = input
     }
@@ -56,7 +56,7 @@ struct NavigationStackItem {
 
 extension NavigationStackItem: Identifiable, Hashable {
     /// Unique identifier for SwiftUI list and navigation operations
-    var id: Int { keyPath }
+    public var id: Int { keyPath }
 
     /// Equality comparison based on keyPath for efficient stack operations
     ///
@@ -68,7 +68,7 @@ extension NavigationStackItem: Identifiable, Hashable {
     ///   - lhs: Left-hand side NavigationStackItem
     ///   - rhs: Right-hand side NavigationStackItem
     /// - Returns: `true` if both items have the same keyPath, `false` otherwise
-    static func == (lhs: NavigationStackItem, rhs: NavigationStackItem) -> Bool {
+    public static func == (lhs: NavigationStackItem, rhs: NavigationStackItem) -> Bool {
         return lhs.keyPath == rhs.keyPath
     }
 
@@ -78,7 +78,7 @@ extension NavigationStackItem: Identifiable, Hashable {
     /// with the same route have the same hash value for efficient collection operations.
     ///
     /// - Parameter hasher: The hasher to combine values into
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(keyPath)
     }
 }

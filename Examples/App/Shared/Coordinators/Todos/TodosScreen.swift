@@ -5,48 +5,47 @@ import Stinsen
 struct TodosScreen: View {
     @ObservedObject private var todosStore: TodosStore
     @EnvironmentObject private var todosRouter: TodosCoordinator.Router
-    
-    @ViewBuilder var button: some View {
-        Button(action: {
-            todosRouter.route(to: \.createTodo)
-        }, label: {
-            Image(systemName: "folder.badge.plus")
-        })
+
+    init(todosStore: TodosStore) {
+        self.todosStore = todosStore
     }
-    
-    @ViewBuilder var content: some View {
-        ScrollView {
-            #if !os(iOS)
-            button
-            #endif
-            if todosStore.all.isEmpty {
-                InfoText("You have no stored todos.")
+
+    var body: some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    button
+                }
             }
+    }
+
+    var content: some View {
+        ScrollView {
             VStack {
+                if todosStore.all.isEmpty {
+                    InfoText("You have no stored todos.")
+                }
+
                 ForEach(todosStore.all) { todo in
                     Button(todo.name, action: {
-                        todosRouter.route(to: \.todo, todo.id)
+//                        todosRouter.route(to: \.todo, todo.id)
                     })
                 }
             }
-            .padding(18)
+            .padding()
         }
-        .navigationTitle(with: "Todos")
+        .navigationTitle("This is the Todos screen")
     }
-    
-    @ViewBuilder var body: some View {
-        #if os(iOS)
-        content
-        .navigationBarItems(
-            trailing: button
+
+    var button: some View {
+        Button(
+            action: {
+//                todosRouter.route(to: \.createTodo)
+            },
+            label: {
+                Image(systemName: "folder.badge.plus")
+            }
         )
-        #else
-        content
-        #endif
-    }
-    
-    init(todosStore: TodosStore) {
-        self.todosStore = todosStore
     }
 }
 

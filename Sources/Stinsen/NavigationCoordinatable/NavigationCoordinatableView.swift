@@ -49,7 +49,10 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     }
 
     /// The current root observer from the stack
-    @ObservedObject private var rootObserver: NavigationRoot
+    private var rootObserver: NavigationRoot {
+        // Use safe root access to prevent crashes during root switching
+        return stack.safeRoot(with: coordinator)
+    }
 
     /// State to force view updates when coordinator stack changes
     @State private var stackChangeId = UUID()
@@ -101,9 +104,6 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
         // Ensure root is set up for current stack
         coordinator.stack.ensureRoot(with: coordinator)
 
-        // Initialize root observer
-        _rootObserver = ObservedObject(wrappedValue: coordinator.stack.root)
-
         RouterStore.shared.store(router: router)
     }
 
@@ -145,6 +145,9 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
         .onReceive(presentationHelper.$pushPath) { newPath in
             presentationHelper.handlePushPathChange(newPath)
         }
+        .onReceive(presentationHelper.$rootChangeId) { _ in
+            print("🔄 NavigationCoordinatableView: Root change detected, forcing view update")
+        }
     }
 
     // MARK: - Content Views
@@ -161,15 +164,18 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     private var rootContent: some View {
         if id == -1 {
             // Main coordinator root view
+            // Ensure root is available before rendering
+            let rootItem = rootObserver.item
             coordinator.customize(
-                AnyView(rootObserver.item.child.view())
+                AnyView(rootItem.child.view())
             )
             .onAppear {
-                print("🏠 Rendering root for coordinator: \(type(of: coordinator))")
-                print("🎯 Root child view type: \(type(of: rootObserver.item.child.view()))")
+                print("🏠 Rendering root for coordinator: \(type(of: coordinator)) (id: \(id))")
+                print("🎯 Root child view type: \(type(of: rootItem.child.view()))")
+                print("🔑 Root keyPath: \(rootItem.keyPath)")
             }
-            .onChange(of: rootObserver.item.keyPath) { newKeyPath in
-                print("🔄 Root changed to keyPath: \(newKeyPath)")
+            .onChange(of: presentationHelper.rootChangeId) { _ in
+                print("🔄 Root change detected via PresentationHelper")
             }
         } else {
             // This shouldn't happen in normal navigation flow

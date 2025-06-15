@@ -6,7 +6,7 @@ final class RegistrationCoordinator: NavigationCoordinatable {
     var stack = NavigationStack(initial: \RegistrationCoordinator.start)
     let services: UnauthenticatedServices
 
-    @Root var start = makeStart
+    @Root(makeStart) var start
     @NavigationRoute(.push) var password = makePassword
 
     init(services: UnauthenticatedServices) {

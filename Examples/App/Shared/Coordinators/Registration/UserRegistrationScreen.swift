@@ -12,10 +12,9 @@ struct UserRegistrationScreen: View {
             RoundedTextField("Desired username", text: $text)
             Spacer(minLength: 32)
             RoundedButton("Next step", style: .primary) {
-                registrationRouter.route(to: \.password, text)
+//                registrationRouter.route(to: \.password, text)
             }
         }
-        .navigationTitle(with: "Register user")
     }
 }
 

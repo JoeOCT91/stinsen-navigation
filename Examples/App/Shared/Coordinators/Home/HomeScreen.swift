@@ -19,15 +19,13 @@ struct HomeScreen: View {
                         Button(todo.name) {
                             let todosCoordinator =
                                 authenticatedRouter
-                                .focusFirst(\.$todos)
-                                .child
-
-
+//                                .focusFirst(\.$todos)
+//                                .child
 
                             DispatchQueue.main.async {
                                 todosCoordinator
-                                    .popToRoot()
-                                    .route(to: \.todo, todo.id)
+//                                    .popToRoot()
+//                                    .route(to: \.todo, todo.id)
                             }
                         }
                     }
@@ -35,7 +33,8 @@ struct HomeScreen: View {
                 .padding(18)
             }
         }
-        .navigationTitle(with: "Home")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Login Screen")
     }
 
     init(todosStore: TodosStore) {

@@ -24,6 +24,9 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
     /// Full-screen presentation item
     @Published var fullScreenItem: NavigationStackItem?
 
+    /// Published property to notify about root changes
+    @Published var rootChangeId = UUID()
+
     /// The current navigation stack from the coordinator
     private var navigationStack: NavigationStack<T> {
         coordinator.stack
@@ -51,6 +54,10 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
         // Initialize current stack tracking
         currentStackId = ObjectIdentifier(coordinator.stack)
+
+        // Ensure root is initialized before setting up observations
+        coordinator.stack.ensureRoot(with: coordinator)
+        print("🔧 PresentationHelper: Setting up observations for \(type(of: coordinator))")
 
         observeCurrentStack()
     }
@@ -116,25 +123,38 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
             }
         }
         .store(in: &cancellables)
-//
-//        navigationStack.poppedTo.sink { <#Int#> in
-//            <#code#>
-//        }
+
+        // Observe root changes to trigger UI updates when root switches occur
+        // Use safe root access to prevent crashes during root switching
+        let safeRoot = navigationStack.safeRoot(with: coordinator)
+        print("🔧 PresentationHelper: Setting up root observation for current keyPath: \(safeRoot.item.keyPath)")
+        safeRoot.$item.dropFirst().sink { [weak self] newItem in
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                print("🔄 PresentationHelper: Root changed to keyPath \(newItem.keyPath), triggering UI update")
+                self.rootChangeId = UUID()
+            }
+        }
+        .store(in: &cancellables)
     }
 
     /// Creates the destination content view for regular navigation stack items (non-coordinators).
     func createDestinationContent(for item: NavigationStackItem) -> some View {
-        return item.presentableWrapper.createView()
+        // Use the wrapper's createView() method which returns AnyView
+        // This is necessary for collection storage but minimizes type erasure impact
+        return DestinationContentView(item: item)
     }
 
     /// Creates the coordinator content view, avoiding nested NavigationStack.
-    func createCoordinatorContent(for item: NavigationStackItem) -> AnyView {
-        // For coordinators, get their root content directly to avoid nested NavigationStack
-        if let coordinator = item.presentable as? any Coordinatable {
-            return AnyView(coordinator.view())
-        } else {
-            // Fallback
-            return item.presentableWrapper.createView()
+    func createCoordinatorContent(for item: NavigationStackItem) -> some View {
+        Group {
+            if let coordinator = item.presentable as? any Coordinatable {
+                // Return the coordinator's view directly without additional AnyView wrapping
+                CoordinatorContentView(coordinator: coordinator)
+            } else {
+                // Fallback for non-coordinator presentables
+                DestinationContentView(item: item)
+            }
         }
     }
 
@@ -230,5 +250,26 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
         // For now, return nil to use the fallback approach
         // This can be enhanced later with reflection or protocol extensions
         return nil
+    }
+}
+
+// MARK: - Helper Views for Better Type Safety
+
+/// A view that renders NavigationStackItem content with minimal type erasure.
+private struct DestinationContentView: View {
+    let item: NavigationStackItem
+
+    var body: some View {
+        item.presentableWrapper.createView()
+    }
+}
+
+/// A view that renders coordinator content without nested NavigationStack.
+private struct CoordinatorContentView: View {
+    let coordinator: any Coordinatable
+
+    var body: some View {
+        // Access the coordinator's view directly
+        AnyView(coordinator.view())
     }
 }

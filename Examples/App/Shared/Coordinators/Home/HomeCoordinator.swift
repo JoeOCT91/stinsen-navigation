@@ -3,18 +3,17 @@ import SwiftUI
 
 import Stinsen
 
-final class HomeCoordinator: NavigationCoordinatable {    
-    var stack = NavigationStack(initial: \HomeCoordinator.start)    
+final class HomeCoordinator: NavigationCoordinatable {
+    @Root(makeStart) var start
 
-    @Root var start = makeStart
-    
+    var stack = NavigationStack(initial: \HomeCoordinator.start)
     let todosStore: TodosStore
-    
+
     init(todosStore: TodosStore) {
         self.todosStore = todosStore
     }
-    
+
     deinit {
-        print("Deinit HomeCoordinator")
+        print("De-init HomeCoordinator")
     }
 }

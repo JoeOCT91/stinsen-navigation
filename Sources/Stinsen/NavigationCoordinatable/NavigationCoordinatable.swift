@@ -30,7 +30,6 @@ import SwiftUI
 /// ```
 public protocol NavigationCoordinatable: Coordinatable {
     typealias Route = NavigationRoute
-//    typealias Root = NavigationRoute
     typealias Router = NavigationRouter<Self>
     associatedtype CustomizeViewType: View
     associatedtype RouterStoreType
@@ -972,14 +971,34 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Output {
-        if stack.root.item.keyPath == route.hashValue {
-            if let inputItem = inputItem {
-                if inputItem.comparator(inputItem.input, stack.root.item.input! as! Input) == true {
-                    return stack.root.item.child as! Output
-                }
+        // Ensure root is available before accessing it
+        let safeRoot = stack.safeRoot(with: self)
+
+        // Check if we already have the same root with matching input
+        let isSameRoot = safeRoot.item.keyPath == route.hashValue
+        let hasSameInput: Bool
+
+        if let inputItem = inputItem {
+            if let existingInput = safeRoot.item.input {
+                hasSameInput = inputItem.comparator(inputItem.input, existingInput as! Input)
             } else {
-                return stack.root.item.child as! Output
+                hasSameInput = false
             }
+        } else {
+            hasSameInput = safeRoot.item.input == nil
+        }
+
+        // Only return existing root if both route and input match exactly
+        if isSameRoot && hasSameInput {
+            print("🔄 Root already matches - returning existing coordinator")
+            return safeRoot.item.child as! Output
+        }
+
+        print("🔄 Creating new root for route \(route.hashValue)")
+
+        // If we're switching to a different root, we need to handle it properly
+        if !isSameRoot {
+            print("🔄 Root switch detected: from \(safeRoot.item.keyPath) to \(route.hashValue)")
         }
 
         let output: Output
@@ -990,12 +1009,14 @@ public extension NavigationCoordinatable {
             output = self[keyPath: route].closure(self)(() as! Input)
         }
 
-        stack.root.item = NavigationRootItem(
+        // Always create a new NavigationRootItem to trigger proper updates
+        safeRoot.item = NavigationRootItem(
             keyPath: route.hashValue,
             input: inputItem?.input,
             child: output
         )
 
+        print("🔄 Root updated to keyPath \(route.hashValue) with coordinator \(type(of: output))")
         return output
     }
 
@@ -1003,14 +1024,34 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Self {
-        if stack.root.item.keyPath == route.hashValue {
-            if let inputItem = inputItem {
-                if inputItem.comparator(inputItem.input, stack.root.item.input! as! Input) == true {
-                    return self
-                }
+        // Ensure root is available before accessing it
+        let safeRoot = stack.safeRoot(with: self)
+
+        // Check if we already have the same root with matching input
+        let isSameRoot = safeRoot.item.keyPath == route.hashValue
+        let hasSameInput: Bool
+
+        if let inputItem = inputItem {
+            if let existingInput = safeRoot.item.input {
+                hasSameInput = inputItem.comparator(inputItem.input, existingInput as! Input)
             } else {
-                return self
+                hasSameInput = false
             }
+        } else {
+            hasSameInput = safeRoot.item.input == nil
+        }
+
+        // Only return early if both route and input match exactly
+        if isSameRoot && hasSameInput {
+            print("🔄 Root view already matches - returning self")
+            return self
+        }
+
+        print("🔄 Creating new root view for route \(route.hashValue)")
+
+        // If we're switching to a different root, we need to handle it properly
+        if !isSameRoot {
+            print("🔄 Root view switch detected: from \(safeRoot.item.keyPath) to \(route.hashValue)")
         }
 
         let output: Output
@@ -1021,12 +1062,14 @@ public extension NavigationCoordinatable {
             output = self[keyPath: route].closure(self)(() as! Input)
         }
 
-        stack.root.item = NavigationRootItem(
+        // Always create a new NavigationRootItem to trigger proper updates
+        safeRoot.item = NavigationRootItem(
             keyPath: route.hashValue,
             input: inputItem?.input,
             child: AnyView(output)
         )
 
+        print("🔄 Root view updated to keyPath \(route.hashValue)")
         return self
     }
 
@@ -1088,7 +1131,10 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Bool {
-        guard stack.root.item.keyPath == route.hashValue else {
+        // Ensure root is available before accessing it
+        let safeRoot = stack.safeRoot(with: self)
+
+        guard safeRoot.item.keyPath == route.hashValue else {
             return false
         }
 
@@ -1096,7 +1142,7 @@ public extension NavigationCoordinatable {
             return true
         }
 
-        guard let compareTo = stack.root.item.input else {
+        guard let compareTo = safeRoot.item.input else {
             fatalError()
         }
 
@@ -1107,7 +1153,10 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Bool {
-        guard stack.root.item.keyPath == route.hashValue else {
+        // Ensure root is available before accessing it
+        let safeRoot = stack.safeRoot(with: self)
+
+        guard safeRoot.item.keyPath == route.hashValue else {
             return false
         }
 
@@ -1115,7 +1164,7 @@ public extension NavigationCoordinatable {
             return true
         }
 
-        guard let compareTo = stack.root.item.input else {
+        guard let compareTo = safeRoot.item.input else {
             fatalError()
         }
 
@@ -1126,7 +1175,7 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Output? {
-        return _isRoot(route, inputItem: inputItem) ? (stack.root.item.child as! Output) : nil
+        return _isRoot(route, inputItem: inputItem) ? (stack.safeRoot(with: self).item.child as! Output) : nil
     }
 
     @discardableResult func isRoot<Output: Coordinatable>(

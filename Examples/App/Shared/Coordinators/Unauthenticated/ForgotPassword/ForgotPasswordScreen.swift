@@ -21,7 +21,6 @@ struct ForgotPasswordScreen: View {
                     }
                 }
             }
-            .navigationTitle(with: "Forgot password")
         }
     }
     

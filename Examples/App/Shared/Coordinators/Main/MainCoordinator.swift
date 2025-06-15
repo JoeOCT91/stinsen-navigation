@@ -3,19 +3,19 @@ import Stinsen
 import SwiftUI
 
 final class MainCoordinator: NavigationCoordinatable {
-    var stack: Stinsen.NavigationStack<MainCoordinator>
-
-    @Root var unauthenticated = makeUnauthenticated
-    @Root var authenticated = makeAuthenticated
-
-    init() {
+    lazy var stack: Stinsen.NavigationStack<MainCoordinator> = {
         switch AuthenticationService.shared.status {
         case let .authenticated(user):
-            stack = NavigationStack(initial: \MainCoordinator.authenticated, user)
+            return NavigationStack(initial: \MainCoordinator.authenticated, user)
         case .unauthenticated:
-            stack = NavigationStack(initial: \MainCoordinator.unauthenticated)
+            return NavigationStack(initial: \MainCoordinator.unauthenticated)
         }
-    }
+    }()
+
+    @Root(makeUnauthenticated) var unauthenticated
+    @Root(makeAuthenticated) var authenticated
+
+    init() { }
 
     @ViewBuilder
     func sharedView(_ view: AnyView) -> some View {
@@ -25,12 +25,12 @@ final class MainCoordinator: NavigationCoordinatable {
                 switch status {
                 case .unauthenticated:
                     print("🔄 Switching to unauthenticated root")
-                    // Create new stack with unauthenticated root
+                    // Create new stack
                     self.stack = NavigationStack(initial: \MainCoordinator.unauthenticated)
                 case let .authenticated(user):
                     print("🔄 Switching to authenticated root for user: \(user.username)")
-                    // Create new stack with authenticated root and user input
-                    self.stack = NavigationStack(initial: \MainCoordinator.authenticated, user)
+                    // Create new stack with user input
+                    self.root(\MainCoordinator.authenticated, user)
                 }
             }
     }
