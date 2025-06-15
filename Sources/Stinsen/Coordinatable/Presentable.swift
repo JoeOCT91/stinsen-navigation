@@ -9,7 +9,7 @@ public protocol ViewPresentable {
 }
 
 extension AnyView: ViewPresentable {
-    public func view() -> AnyView {
+    public func view() -> some View {
         return self
     }
 }

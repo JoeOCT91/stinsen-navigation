@@ -41,9 +41,9 @@ final class MainCoordinator: NavigationCoordinatable {
                             switch deepLink {
                             case .todo(let id):
                                 coordinator
-                                    .focusFirst(\.todos)
-                                    .child
-                                    .route(to: \.todo, id)
+//                                    .focusFirst(\.todos)
+//                                    .child
+//                                    .route(to: \.todo, id)
                             }
                         } catch {
                             print(error.localizedDescription)

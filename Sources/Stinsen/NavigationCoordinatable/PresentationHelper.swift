@@ -42,7 +42,11 @@ final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
     
     // MARK: - View Creation Methods
     private func createNavigationView(_ view: AnyView) -> AnyView {
-        AnyView(view)
+        AnyView(
+            SwiftUI.NavigationStack {
+                view
+            }
+        )
     }
     
     private func createPresentedView(from presentable: any ViewPresentable, coordinator: T, nextId: Int, type: PresentationType) -> Presented<AnyView> {

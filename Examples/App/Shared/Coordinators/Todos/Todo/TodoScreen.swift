@@ -10,13 +10,11 @@ struct TodoScreen: View {
 
     var content: some View {
         ScrollView {
-            #if !os(iOS)
-            button
-            #endif
             InfoText("This is the details screen for your todo.")
         }
         .navigationTitle(with: todosStore[todoId].name)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .toolbar(.hidden, for: .tabBar)
     }
     
     var button: some View {
