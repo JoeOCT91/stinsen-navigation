@@ -3,7 +3,7 @@ import SwiftUI
 import Stinsen
 
 final class RegistrationCoordinator: NavigationCoordinatable {
-    let stack = NavigationStack(initial: \RegistrationCoordinator.start)
+    var stack = NavigationStack(initial: \RegistrationCoordinator.start)
     let services: UnauthenticatedServices
 
     @Root var start = makeStart
