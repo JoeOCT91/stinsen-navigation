@@ -49,22 +49,25 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     }
 
     /// The current root observer from the stack
-    private var rootObserver: NavigationRoot {
-        // Ensure root is set up before accessing
-        stack.ensureRoot(with: coordinator)
-        let root = stack.root
-        print("🔍 Root observer for \(type(of: coordinator)) (id: \(id)): \(type(of: root.item.child))")
-        return root
-    }
+    @ObservedObject private var rootObserver: NavigationRoot
 
     /// State to force view updates when coordinator stack changes
     @State private var stackChangeId = UUID()
 
     /// Computed binding for coordinator presentation
+    ///
+    /// This binding is the source of truth for coordinator dismissals.
+    /// When SwiftUI dismisses a coordinator (via swipe back, navigation, etc.),
+    /// the setter is called with false, which triggers the coordinator stack update.
     private var coordinatorBinding: Binding<Bool> {
         Binding(
             get: { presentationHelper.pushedCoordinator != nil },
-            set: { if !$0 { presentationHelper.pushedCoordinator = nil } }
+            set: { isPresented in
+                if !isPresented {
+                    // SwiftUI dismissed the coordinator - delegate to presentation helper
+                    presentationHelper.handleCoordinatorDismissal()
+                }
+            }
         )
     }
 
@@ -98,6 +101,9 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
         // Ensure root is set up for current stack
         coordinator.stack.ensureRoot(with: coordinator)
 
+        // Initialize root observer
+        _rootObserver = ObservedObject(wrappedValue: coordinator.stack.root)
+
         RouterStore.shared.store(router: router)
     }
 
@@ -106,16 +112,39 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// Uses modern SwiftUI NavigationStack for push navigation and handles
     /// modal and full-screen presentations through the PresentationHelper.
     var body: some View {
-        coordinatorNavigationDestination(
-            SwiftUI.NavigationStack(path: $presentationHelper.pushPath) {
-                rootContent
-                    .navigationDestination(for: NavigationStackItem.self) { item in
-                        presentationHelper.createDestinationContent(for: item)
-                            .environmentObject(router)
-                    }
+        SwiftUI.NavigationStack(path: $presentationHelper.pushPath) {
+            Group {
+                if #available(iOS 17.0, macOS 14.0, *) {
+                    // Use the cleaner item-based API on newer versions
+                    rootContent
+                        .navigationDestination(for: NavigationStackItem.self) { item in
+                            presentationHelper.createDestinationContent(for: item)
+                                .environmentObject(router)
+                        }
+                        .navigationDestination(item: $presentationHelper.pushedCoordinator) { coordinatorItem in
+                            presentationHelper.createCoordinatorContent(for: coordinatorItem)
+                                .environmentObject(router)
+                        }
+                } else {
+                    // Fall back to isPresented API on older versions
+                    rootContent
+                        .navigationDestination(for: NavigationStackItem.self) { item in
+                            presentationHelper.createDestinationContent(for: item)
+                                .environmentObject(router)
+                        }
+                        .navigationDestination(isPresented: coordinatorBinding) {
+                            if let coordinatorItem = presentationHelper.pushedCoordinator {
+                                presentationHelper.createCoordinatorContent(for: coordinatorItem)
+                                    .environmentObject(router)
+                            }
+                        }
+                }
             }
-        )
+        }
         .environmentObject(router)
+        .onReceive(presentationHelper.$pushPath) { newPath in
+            presentationHelper.handlePushPathChange(newPath)
+        }
     }
 
     // MARK: - Content Views
@@ -136,8 +165,11 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                 AnyView(rootObserver.item.child.view())
             )
             .onAppear {
-                print("🏠 Rendering main root for coordinator: \(type(of: coordinator))")
+                print("🏠 Rendering root for coordinator: \(type(of: coordinator))")
                 print("🎯 Root child view type: \(type(of: rootObserver.item.child.view()))")
+            }
+            .onChange(of: rootObserver.item.keyPath) { newKeyPath in
+                print("🔄 Root changed to keyPath: \(newKeyPath)")
             }
         } else {
             // This shouldn't happen in normal navigation flow
@@ -145,30 +177,6 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                 .onAppear {
                     print("⚠️ Unexpected root content request for id: \(id)")
                 }
-        }
-    }
-}
-
-// MARK: - Version-Specific Extensions
-
-extension NavigationCoordinatableView {
-    /// Applies coordinator navigation destination with version-specific implementation
-    @ViewBuilder
-    private func coordinatorNavigationDestination<Content: View>(_ content: Content) -> some View {
-        if #available(iOS 17.0, macOS 14.0, *) {
-            // Use the cleaner item-based API on newer versions
-            content.navigationDestination(item: $presentationHelper.pushedCoordinator) { coordinatorItem in
-                presentationHelper.createCoordinatorContent(for: coordinatorItem)
-                    .environmentObject(router)
-            }
-        } else {
-            // Fall back to isPresented API on older versions
-            content.navigationDestination(isPresented: coordinatorBinding) {
-                if let coordinatorItem = presentationHelper.pushedCoordinator {
-                    presentationHelper.createCoordinatorContent(for: coordinatorItem)
-                        .environmentObject(router)
-                }
-            }
         }
     }
 }
