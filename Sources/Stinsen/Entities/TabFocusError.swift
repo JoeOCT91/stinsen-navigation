@@ -5,7 +5,7 @@
 //  Created by Yousef Mohamed on 15/06/2025.
 //
 
-
+import Foundation
 
 // MARK: - Tab Focus Error Types
 public enum TabFocusError: Error, LocalizedError {

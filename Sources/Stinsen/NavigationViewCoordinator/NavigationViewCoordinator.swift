@@ -22,10 +22,7 @@ public struct NavigationStackWrapper<Content: View>: View {
 /// ```swift
 /// let navigationCoordinator = NavigationViewCoordinator(childCoordinator)
 /// ```
-public class NavigationViewCoordinator<T: Coordinatable>: ViewWrapperCoordinator<
-    T, NavigationStackWrapper<T.PresentedView>
->
-{
+public class NavigationViewCoordinator<T: Coordinatable>: ViewWrapperCoordinator<T, NavigationStackWrapper<T.PresentedView>> {
 
     /// Initializes a NavigationViewCoordinator that wraps the child in a NavigationStack.
     ///
@@ -36,14 +33,8 @@ public class NavigationViewCoordinator<T: Coordinatable>: ViewWrapperCoordinator
         }
     }
 
-    @available(
-        *, unavailable,
-        message: "NavigationViewCoordinator automatically provides NavigationStack wrapping"
-    )
-    public override init(
-        _ childCoordinator: T,
-        _ view: @escaping (T) -> (T.PresentedView) -> NavigationStackWrapper<T.PresentedView>
-    ) {
+    @available(*, unavailable,message: "NavigationViewCoordinator automatically provides NavigationStack wrapping")
+    public override init(_ childCoordinator: T,_ view: @escaping (T) -> (T.PresentedView) -> NavigationStackWrapper<T.PresentedView>) {
         fatalError("NavigationViewCoordinator automatically provides NavigationStack wrapping")
     }
 }

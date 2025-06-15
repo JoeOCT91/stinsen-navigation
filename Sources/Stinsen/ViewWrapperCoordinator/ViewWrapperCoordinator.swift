@@ -46,9 +46,7 @@ open class ViewWrapperCoordinator<T: Coordinatable, V: View>: Coordinatable {
         ViewWrapperCoordinatorView(coordinator: self, viewFactory(child))
     }
 
-    public func dismissChild<CoordinatorType: Coordinatable>(
-        coordinator: CoordinatorType, action: (() -> Void)?
-    ) {
+    public func dismissChild<CoordinatorType: Coordinatable>(coordinator: CoordinatorType, action: (() -> Void)?) {
         guard let parent = self.parent else {
             assertionFailure("Can not dismiss a coordinator since no coordinator is presented.")
             return
