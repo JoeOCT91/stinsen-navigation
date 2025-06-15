@@ -34,20 +34,39 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// Manages all navigation presentation state and logic
     @StateObject private var presentationHelper: PresentationHelper<T>
 
-    /// Observes the root navigation item for changes
-    @ObservedObject private var rootObserver: NavigationRoot
-
-    /// The coordinator's navigation stack
-    let stack: NavigationStack<T>
-
     /// The coordinator that this view represents
-    let coordinator: T
+    @ObservedObject private var coordinator: T
 
     /// Unique identifier for this view instance
     private let id: Int
 
     /// Router instance for navigation operations
     private let router: NavigationRouter<T>
+
+    /// The current navigation stack from the coordinator
+    private var stack: NavigationStack<T> {
+        coordinator.stack
+    }
+
+    /// The current root observer from the stack
+    private var rootObserver: NavigationRoot {
+        // Ensure root is set up before accessing
+        stack.ensureRoot(with: coordinator)
+        let root = stack.root
+        print("🔍 Root observer for \(type(of: coordinator)) (id: \(id)): \(type(of: root.item.child))")
+        return root
+    }
+
+    /// State to force view updates when coordinator stack changes
+    @State private var stackChangeId = UUID()
+
+    /// Computed binding for coordinator presentation
+    private var coordinatorBinding: Binding<Bool> {
+        Binding(
+            get: { presentationHelper.pushedCoordinator != nil },
+            set: { if !$0 { presentationHelper.pushedCoordinator = nil } }
+        )
+    }
 
     /// Initializes a new NavigationCoordinatableView for the specified coordinator.
     ///
@@ -64,72 +83,38 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// - `>= 0`: Child view content at specific stack index
     init(id: Int, coordinator: T) {
         self.id = id
-        self.coordinator = coordinator
-        self.stack = coordinator.stack
+        _coordinator = ObservedObject(wrappedValue: coordinator)
 
-        self.router = NavigationRouter(
+        router = NavigationRouter(
             id: id,
             coordinator: coordinator.routerStorable
         )
 
         // Initialize StateObject
-        self._presentationHelper = StateObject(
-            wrappedValue: PresentationHelper(id: id, coordinator: coordinator))
+        _presentationHelper = StateObject(
+            wrappedValue: PresentationHelper(id: id, coordinator: coordinator)
+        )
 
-        // Ensure root is set up
-        stack.ensureRoot(with: coordinator)
-
-        // Initialize root observer
-        self.rootObserver = stack.root
+        // Ensure root is set up for current stack
+        coordinator.stack.ensureRoot(with: coordinator)
 
         RouterStore.shared.store(router: router)
     }
 
     /// The main view body that renders the navigation hierarchy.
     ///
-    /// Creates a SwiftUI NavigationStack bound to the presentation helper's push path,
-    /// with support for modal and full-screen presentations. All presentation types
-    /// are handled with proper dismissal action execution.
-    ///
-    /// ## Navigation Structure
-    /// ```
-    /// NavigationStack (push items)
-    /// ├── Root Content
-    /// ├── .navigationDestination (for push navigation)
-    /// ├── .sheet (for modal presentations)
-    /// └── .fullScreenCover (for full-screen presentations, iOS only)
-    /// ```
+    /// Uses modern SwiftUI NavigationStack for push navigation and handles
+    /// modal and full-screen presentations through the PresentationHelper.
     var body: some View {
-        SwiftUI.NavigationStack(path: $presentationHelper.pushPath) {
-            rootContent
-                #if os(iOS)
-                    .toolbar(.visible, for: .navigationBar)
-                #endif
-                .navigationDestination(for: NavigationStackItem.self) { item in
-                    presentationHelper.createDestinationContent(for: item)
-                        .environmentObject(router)
-                }
-        }
-        .sheet(
-            item: $presentationHelper.modalItem,
-            onDismiss: {
-                presentationHelper.handleModalDismissal()
+        coordinatorNavigationDestination(
+            SwiftUI.NavigationStack(path: $presentationHelper.pushPath) {
+                rootContent
+                    .navigationDestination(for: NavigationStackItem.self) { item in
+                        presentationHelper.createDestinationContent(for: item)
+                            .environmentObject(router)
+                    }
             }
-        ) { wrapper in
-            presentationHelper.createDestinationContent(for: wrapper.item)
-                .environmentObject(router)
-        }
-        #if os(iOS)
-            .fullScreenCover(
-                item: $presentationHelper.fullScreenItem,
-                onDismiss: {
-                    presentationHelper.handleFullScreenDismissal()
-                }
-            ) { wrapper in
-                presentationHelper.createDestinationContent(for: wrapper.item)
-                .environmentObject(router)
-            }
-        #endif
+        )
         .environmentObject(router)
     }
 
@@ -150,24 +135,40 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
             coordinator.customize(
                 AnyView(rootObserver.item.child.view())
             )
+            .onAppear {
+                print("🏠 Rendering main root for coordinator: \(type(of: coordinator))")
+                print("🎯 Root child view type: \(type(of: rootObserver.item.child.view()))")
+            }
         } else {
-            // Child view content
-            currentViewContent
+            // This shouldn't happen in normal navigation flow
+            Text("Unexpected root content for id: \(id)")
+                .onAppear {
+                    print("⚠️ Unexpected root content request for id: \(id)")
+                }
         }
     }
+}
 
-    /// Renders the current view content for child views.
-    ///
-    /// Safely accesses the navigation stack at the specified index and renders
-    /// the corresponding presentable view. Returns empty view if index is out of bounds.
-    ///
-    /// ## Safety
-    /// Uses safe array access to prevent crashes when the stack changes during
-    /// view updates or when the index becomes invalid.
+// MARK: - Version-Specific Extensions
+
+extension NavigationCoordinatableView {
+    /// Applies coordinator navigation destination with version-specific implementation
     @ViewBuilder
-    private var currentViewContent: some View {
-        if let item = stack.value[safe: id] {
-            AnyView(item.presentable.view())
+    private func coordinatorNavigationDestination<Content: View>(_ content: Content) -> some View {
+        if #available(iOS 17.0, macOS 14.0, *) {
+            // Use the cleaner item-based API on newer versions
+            content.navigationDestination(item: $presentationHelper.pushedCoordinator) { coordinatorItem in
+                presentationHelper.createCoordinatorContent(for: coordinatorItem)
+                    .environmentObject(router)
+            }
+        } else {
+            // Fall back to isPresented API on older versions
+            content.navigationDestination(isPresented: coordinatorBinding) {
+                if let coordinatorItem = presentationHelper.pushedCoordinator {
+                    presentationHelper.createCoordinatorContent(for: coordinatorItem)
+                        .environmentObject(router)
+                }
+            }
         }
     }
 }

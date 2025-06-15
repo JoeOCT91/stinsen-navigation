@@ -4,58 +4,33 @@ import SwiftUI
 
 /// A helper class that manages presentation state for NavigationCoordinatable coordinators.
 ///
-/// PresentationHelper encapsulates all navigation state management logic, including:
-/// - Push navigation path management for SwiftUI NavigationStack
-/// - Modal presentation state using .sheet()
-/// - Full-screen presentation state using .fullScreenCover() (iOS only)
-/// - Pop detection and dismissal action execution
-/// - Two-way synchronization between UI state and coordinator stack
-///
-/// This class acts as a bridge between the coordinator's navigation stack and SwiftUI's
-/// presentation mechanisms, ensuring proper state synchronization and dismissal handling.
-///
-/// ## Architecture
-/// The PresentationHelper observes changes to the coordinator's stack and filters items
-/// by presentation type:
-/// - Push items → NavigationStack path
-/// - Modal items → .sheet() presentation
-/// - Full-screen items → .fullScreenCover() presentation
-///
-/// It also monitors NavigationStack path changes to detect when users navigate back
-/// using system gestures or back buttons, ensuring dismissal actions are called appropriately.
+/// PresentationHelper handles the presentation logic for navigation items, including
+/// modal presentations, full-screen presentations, and push navigation. It observes
+/// the coordinator's navigation stack and updates presentation state accordingly.
 final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
-    // MARK: - Properties
-
-    /// The unique identifier for this presentation helper instance
     private let id: Int
-
-    /// The coordinator that this helper manages presentation for
-    private let coordinator: T
-
-    /// Set of Combine cancellables for managing subscriptions
+    @ObservedObject private var coordinator: T
     private var cancellables = Set<AnyCancellable>()
 
-    /// Previous push path state used for pop detection
-    private var previousPushPath: [NavigationStackItem] = []
-
-    /// The current navigation path for push presentations.
-    ///
-    /// This array contains only items with `.push` presentation type and is directly
-    /// bound to SwiftUI's NavigationStack path. Changes to this array trigger
-    /// navigation updates and pop detection logic.
+    /// Push navigation path for SwiftUI NavigationStack (regular views only)
     @Published var pushPath: [NavigationStackItem] = []
 
-    /// The current modal presentation item.
-    ///
-    /// When not nil, triggers a .sheet() presentation. Only one modal can be
-    /// presented at a time. Setting to nil dismisses the current modal.
-    @Published var modalItem: IdentifiableWrapper?
+    /// Coordinator push navigation (separate from regular push navigation)
+    @Published var pushedCoordinator: NavigationStackItem?
 
-    /// The current full-screen presentation item (iOS only).
-    ///
-    /// When not nil, triggers a .fullScreenCover() presentation. Only one full-screen
-    /// presentation can be active at a time. Setting to nil dismisses the current presentation.
-    @Published var fullScreenItem: IdentifiableWrapper?
+    /// Modal presentation item
+    @Published var modalItem: NavigationStackItem?
+
+    /// Full-screen presentation item
+    @Published var fullScreenItem: NavigationStackItem?
+
+    /// The current navigation stack from the coordinator
+    private var navigationStack: NavigationStack<T> {
+        coordinator.stack
+    }
+
+    /// Keep track of the current stack to detect changes
+    private var currentStackId: ObjectIdentifier?
 
     // MARK: - Initialization
 
@@ -69,217 +44,169 @@ final class PresentationHelper<T: NavigationCoordinatable>: ObservableObject {
     ///   - coordinator: The coordinator to manage presentation for
     init(id: Int, coordinator: T) {
         self.id = id
-        self.coordinator = coordinator
+        _coordinator = ObservedObject(wrappedValue: coordinator)
 
-        observeStackChanges()
-        observePushPathChanges()
-        updatePresentationStates()
+        // Initialize current stack tracking
+        currentStackId = ObjectIdentifier(coordinator.stack)
+
+        observeCurrentStack()
     }
 
-    /// Sets up observation of the coordinator's stack value changes.
-    ///
-    /// Subscribes to the coordinator's stack `$value` publisher and updates
-    /// presentation states whenever the stack changes. Updates are dispatched
-    /// to the main queue to ensure UI consistency.
-    private func observeStackChanges() {
-        coordinator.stack.$value
-            .sink { [weak self] stackValue in
-                DispatchQueue.main.async {
-                    self?.updatePresentationStates(from: stackValue)
+    func updatePresentationStates() {
+        let currentStack = navigationStack
+        let stackItems = currentStack.value
+
+        // Check only the last push item (most efficient)
+        let lastPushItem = stackItems.last { $0.presentationType == .push }
+
+        if let lastItem = lastPushItem {
+            // Check if last item is a coordinator
+            if lastItem.presentable is any Coordinatable {
+                // Update coordinator push
+                if pushedCoordinator?.id != lastItem.id {
+                    pushedCoordinator = lastItem
+                    pushPath = [] // Clear regular push path when coordinator is active
+                }
+            } else {
+                // Update regular push path
+                let regularItems = stackItems.filter {
+                    $0.presentationType == .push && !($0.presentable is any Coordinatable)
+                }
+                if pushPath != regularItems {
+                    pushPath = regularItems
+                    pushedCoordinator = nil // Clear coordinator when regular views are active
                 }
             }
-            .store(in: &cancellables)
-    }
-
-    /// Sets up observation of push path changes for pop detection.
-    ///
-    /// Monitors changes to the `pushPath` array (excluding the initial value)
-    /// to detect when users navigate back using system controls. This enables
-    /// proper dismissal action execution and stack synchronization.
-    private func observePushPathChanges() {
-        $pushPath
-            .dropFirst()
-            .sink { [weak self] newPushPath in
-                self?.handlePushPathChange(newPushPath)
-            }
-            .store(in: &cancellables)
-    }
-
-    // MARK: - Public Methods
-
-    /// Updates all presentation states based on the current or provided stack value.
-    ///
-    /// Filters the stack items by presentation type and updates the corresponding
-    /// published properties. This method ensures that the UI presentation state
-    /// stays synchronized with the coordinator's navigation stack.
-    ///
-    /// - Parameter stackValue: Optional stack value to use instead of current coordinator stack
-    ///
-    /// ## Filtering Logic
-    /// - Push items: Added to `pushPath` for NavigationStack
-    /// - Modal items: Last modal item set as `modalItem` for .sheet()
-    /// - Full-screen items: Last full-screen item set as `fullScreenItem` for .fullScreenCover()
-    func updatePresentationStates(from stackValue: [NavigationStackItem]? = nil) {
-        let stack = stackValue ?? coordinator.stack.value
-
-        // Update push path
-        let newPushItems = stack.filter { $0.presentationType.isPush }
-        if pushPath != newPushItems {
-            previousPushPath = pushPath
-            pushPath = newPushItems
-        }
-
-        // Update modal item
-        let currentModal = stack.last { $0.presentationType.isModal }
-        let newModalItem = currentModal.map { IdentifiableWrapper($0) }
-        if modalItem?.id != newModalItem?.id {
-            modalItem = newModalItem
-        }
-
-        #if os(iOS)
-            // Update fullscreen item (iOS only)
-            let currentFullScreen = stack.last { $0.presentationType.isFullScreen }
-            let newFullScreenItem = currentFullScreen.map { IdentifiableWrapper($0) }
-            if fullScreenItem?.id != newFullScreenItem?.id {
-                fullScreenItem = newFullScreenItem
-            }
-        #endif
-    }
-
-    /// Handles changes to the push path to detect popped items and execute dismissal actions.
-    ///
-    /// Compares the new push path with the previous path to identify items that were
-    /// removed (popped). For each popped item, executes its dismissal action if one exists,
-    /// then synchronizes the coordinator's stack with the new path state.
-    ///
-    /// - Parameter newPushPath: The updated push path from NavigationStack
-    ///
-    /// ## Pop Detection Logic
-    /// 1. Identifies items present in previous path but not in new path
-    /// 2. Executes dismissal actions for popped items
-    /// 3. Updates coordinator stack to match new push path
-    /// 4. Sends poppedTo notification for coordinator awareness
-    /// 5. Updates previous path for next comparison
-    private func handlePushPathChange(_ newPushPath: [NavigationStackItem]) {
-        // Find items that were popped (in previous but not in new)
-        let poppedItems = previousPushPath.filter { previousItem in
-            !newPushPath.contains { $0.id == previousItem.id }
-        }
-
-        // Call dismissal actions for popped items
-        for poppedItem in poppedItems {
-            if let dismissalAction = coordinator.stack.dismissalAction[poppedItem.keyPath] {
-                dismissalAction()
+        } else {
+            // No push items, clear everything
+            if !pushPath.isEmpty || pushedCoordinator != nil {
+                pushPath = []
+                pushedCoordinator = nil
             }
         }
-
-        // Update the coordinator's stack to match the new push path
-        // Keep non-push items and replace push items with the new path
-        let nonPushItems = coordinator.stack.value.filter { !$0.presentationType.isPush }
-        coordinator.stack.value = nonPushItems + newPushPath
-
-        // Notify about the pop if items were removed
-        if !poppedItems.isEmpty, let lastRemainingItem = newPushPath.last {
-            coordinator.stack.poppedTo.send(lastRemainingItem.keyPath)
-        } else if newPushPath.isEmpty {
-            // Popped to root
-            coordinator.stack.poppedTo.send(-1)
-        }
-
-        // Update previous path for next comparison
-        previousPushPath = newPushPath
     }
 
-    /// Handles dismissal of modal presentations.
-    ///
-    /// Called when a modal sheet is dismissed by user interaction (swipe down, tap outside, etc.).
-    /// Executes the dismissal action if one exists, removes the modal item from the coordinator's
-    /// stack, and resets the modal presentation state.
-    ///
-    /// ## Dismissal Process
-    /// 1. Resets `modalItem` to nil immediately to prevent race conditions
-    /// 2. Executes dismissal action if registered
-    /// 3. Removes dismissed item from coordinator stack
-    func handleModalDismissal() {
-        guard let dismissedItem = modalItem else { return }
-
-        // Reset the modal item immediately to prevent race conditions
-        modalItem = nil
-
-        // Call dismissal action if exists
-        if let dismissalAction = coordinator.stack.dismissalAction[dismissedItem.item.keyPath] {
-            dismissalAction()
+    private func observeCurrentStack() {
+        // Observe current stack value changes
+        navigationStack.$value.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.updatePresentationStates()
+            }
         }
+        .store(in: &cancellables)
 
-        // Remove the dismissed modal item from the stack
-        coordinator.stack.value.removeAll {
-            $0.id == dismissedItem.id && $0.presentationType.isModal
+        // Observe push path changes to detect SwiftUI navigation dismissals
+        $pushPath.sink { [weak self] newPath in
+            guard let self = self else { return }
+            self.handlePushPathChange(newPath)
+        }
+        .store(in: &cancellables)
+
+        // Observe coordinator dismissals
+        $pushedCoordinator.sink { [weak self] coordinator in
+            guard let self = self else { return }
+            self.handleCoordinatorChange(coordinator)
+        }
+        .store(in: &cancellables)
+    }
+
+    /// Creates the destination content view for regular navigation stack items (non-coordinators).
+    func createDestinationContent(for item: NavigationStackItem) -> some View {
+        return item.presentableWrapper.createView()
+    }
+
+    /// Creates the coordinator content view, avoiding nested NavigationStack.
+    func createCoordinatorContent(for item: NavigationStackItem) -> AnyView {
+        // For coordinators, get their root content directly to avoid nested NavigationStack
+        if let coordinator = item.presentable as? any Coordinatable {
+            return AnyView(coordinator.view())
+        } else {
+            // Fallback
+            return item.presentableWrapper.createView()
         }
     }
 
-    #if os(iOS)
-        /// Handles dismissal of full-screen presentations (iOS only).
-        ///
-        /// Called when a full-screen cover is dismissed by user interaction.
-        /// Executes the dismissal action if one exists, removes the full-screen item from
-        /// the coordinator's stack, and resets the full-screen presentation state.
-        ///
-        /// ## Dismissal Process
-        /// 1. Resets `fullScreenItem` to nil immediately to prevent race conditions
-        /// 2. Executes dismissal action if registered
-        /// 3. Removes dismissed item from coordinator stack
-        func handleFullScreenDismissal() {
-            guard let dismissedItem = fullScreenItem else { return }
+    /// Handles changes to the push path to detect SwiftUI navigation dismissals
+    private func handlePushPathChange(_ newPath: [NavigationStackItem]) {
+        let currentStack = navigationStack
+        let currentStackItems = currentStack.value.filter { $0.presentationType == .push && !($0.presentable is any Coordinatable) }
 
-            // Reset the fullscreen item immediately to prevent race conditions
-            fullScreenItem = nil
+        // Check if the path was reduced (items were dismissed)
+        if newPath.count < currentStackItems.count {
+            // Sync coordinator stack with SwiftUI navigation state
+            syncStackWithNavigationPath(newPath)
+        }
+    }
 
-            // Call dismissal action if exists
-            if let dismissalAction = coordinator.stack.dismissalAction[dismissedItem.item.keyPath] {
+    /// Handles changes to the pushed coordinator to detect coordinator dismissals
+    private func handleCoordinatorChange(_ coordinator: NavigationStackItem?) {
+        if coordinator == nil {
+            // Coordinator was dismissed
+            syncCoordinatorDismissal()
+        }
+    }
+
+    /// Syncs the coordinator stack with the current SwiftUI navigation path
+    private func syncStackWithNavigationPath(_ currentPath: [NavigationStackItem]) {
+        let currentStack = navigationStack
+        let stackItems = currentStack.value
+
+        // Find the target index to pop to
+        let targetCount = currentPath.count
+        let currentRegularViewCount = stackItems.filter { $0.presentationType == .push && !($0.presentable is any Coordinatable) }.count
+
+        if targetCount < currentRegularViewCount {
+            // Calculate how many items to remove from the coordinator stack
+            let itemsToRemove = currentRegularViewCount - targetCount
+            let newStackCount = stackItems.count - itemsToRemove
+
+            // Trigger dismissal actions for removed items
+            triggerDismissalActions(from: newStackCount, to: stackItems.count)
+
+            // Update coordinator stack to match navigation state
+            coordinator.popTo(newStackCount - 1, nil)
+        }
+    }
+
+    /// Syncs coordinator dismissal with the coordinator stack
+    private func syncCoordinatorDismissal() {
+        let currentStack = navigationStack
+        let stackItems = currentStack.value
+
+        // Find the last coordinator in the stack
+        if let lastCoordinatorIndex = stackItems.lastIndex(where: { $0.presentable is any Coordinatable }) {
+            // Trigger dismissal action for the coordinator
+            if let dismissalAction = currentStack.dismissalAction[lastCoordinatorIndex] {
                 dismissalAction()
             }
 
-            // Remove the dismissed fullscreen item from the stack
-            coordinator.stack.value.removeAll {
-                $0.id == dismissedItem.id && $0.presentationType.isFullScreen
+            // Pop the coordinator from the stack
+            coordinator.popTo(lastCoordinatorIndex - 1, nil)
+        }
+    }
+
+    /// Triggers dismissal actions for items in the specified range
+    private func triggerDismissalActions(from startIndex: Int, to endIndex: Int) {
+        let currentStack = navigationStack
+
+        for index in startIndex ..< endIndex {
+            if let dismissalAction = currentStack.dismissalAction[index] {
+                dismissalAction()
             }
         }
-    #endif
-
-    /// Creates the destination content view for a navigation stack item.
-    ///
-    /// Extracts the presentable from the navigation stack item and returns its view
-    /// wrapped in AnyView for type erasure. This method is used by NavigationStack's
-    /// navigationDestination modifier and sheet/fullScreenCover presentations.
-    ///
-    /// - Parameter item: The navigation stack item to create content for
-    /// - Returns: AnyView containing the item's presentable view
-    func createDestinationContent(for item: NavigationStackItem) -> AnyView {
-        return AnyView(item.presentable.view())
     }
-}
 
-// MARK: - Helper Types
-
-/// Wrapper to make NavigationStackItem work with sheet/fullScreenCover presentations.
-///
-/// SwiftUI's .sheet() and .fullScreenCover() modifiers require Identifiable items.
-/// This wrapper provides the necessary Identifiable conformance while maintaining
-/// access to the underlying NavigationStackItem.
-///
-/// The wrapper uses the NavigationStackItem's id property to satisfy Identifiable,
-/// ensuring proper presentation and dismissal behavior.
-struct IdentifiableWrapper: Identifiable {
-    /// The wrapped navigation stack item
-    let item: NavigationStackItem
-
-    /// Identifiable conformance using the wrapped item's id
-    var id: Int { item.id }
-
-    /// Creates a new wrapper around the specified navigation stack item.
+    /// Attempts to extract the root content from a coordinator without creating a nested NavigationStack.
     ///
-    /// - Parameter item: The NavigationStackItem to wrap
-    init(_ item: NavigationStackItem) {
-        self.item = item
+    /// This method tries to access the coordinator's root content directly to avoid the nested
+    /// NavigationStack problem that occurs when pushing coordinators.
+    ///
+    /// - Parameter coordinator: The coordinator to extract root content from
+    /// - Returns: The root content view if extraction is successful, nil otherwise
+    private func extractRootContent(from _: any Coordinatable) -> (any View)? {
+        // For now, return nil to use the fallback approach
+        // This can be enhanced later with reflection or protocol extensions
+        return nil
     }
 }
