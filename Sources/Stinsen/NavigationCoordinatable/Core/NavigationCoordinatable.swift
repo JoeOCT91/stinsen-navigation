@@ -747,14 +747,18 @@ public extension NavigationCoordinatable {
         }
     }
 
-    /// Creates the SwiftUI view representation of this coordinator.
+    /// Creates a SwiftUI view for this coordinator using NavigationStack.
     ///
-    /// Returns a NavigationCoordinatableView configured as the main coordinator root.
-    /// This is the primary entry point for rendering coordinators in SwiftUI.
+    /// This method sets up the complete navigation infrastructure including:
+    /// - Push navigation using NavigationStack
+    /// - Modal and full-screen presentation handling
+    /// - Stack synchronization and dismissal management
+    /// - Router environment injection for child views
     ///
-    /// - Returns: A SwiftUI view that renders this coordinator's navigation hierarchy
+    /// The view automatically handles all presentation types defined in your routes
+    /// and ensures proper cleanup when the coordinator is dismissed.
     ///
-    /// ## Usage
+    /// ## Example
     /// ```swift
     /// struct ContentView: View {
     ///     let coordinator = MainCoordinator()
@@ -765,7 +769,8 @@ public extension NavigationCoordinatable {
     /// }
     /// ```
     func view() -> some View {
-        return NavigationCoordinatableView(id: -1, coordinator: self)
+        let helper = PresentationHelper(coordinator: self)
+        return NavigationCoordinatableView(helper: helper)
     }
 
     @discardableResult func popToRoot(_ action: (() -> Void)? = nil) -> Self {
@@ -1045,7 +1050,8 @@ public extension NavigationCoordinatable {
         return output
     }
 
-    @discardableResult private func _root<Output: View, Input>(
+    @discardableResult
+    private func _root<Output: View, Input>(
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Self {

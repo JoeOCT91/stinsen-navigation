@@ -3,7 +3,7 @@ import SwiftUI
 
 extension AuthenticatedCoordinator {
     func makeTestbed() -> TestbedEnvironmentObjectCoordinator {
-        return TestbedEnvironmentObjectCoordinator()
+        return TestbedEnvironmentObjectCoordinator(embeddedInStack: true)
     }
 
     func onTestbedTapped(isRepeat: Bool, coordinator: TestbedEnvironmentObjectCoordinator) {

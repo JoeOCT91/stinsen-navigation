@@ -109,15 +109,29 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
     // MARK: ‑ Internals
 
-    private var coordinator: T
+    public private(set) var coordinator: T
     private var cancellables = Set<AnyCancellable>()
     private var stack: NavigationStack<T> { coordinator.stack }
 
+    /// Router instance for navigation operations
+    public let router: NavigationRouter<T>
+
+    /// Cached root to avoid repeated ensureRoot calls
+    private var _cachedRoot: NavigationRoot?
+
     // MARK: ‑ Init
 
-    public init(id _: Int, coordinator: T) {
+    public init(coordinator: T) {
         self.coordinator = coordinator
-        coordinator.stack.ensureRoot(with: coordinator)
+
+        // Create router and store it in RouterStore
+        // Since id is always -1 for NavigationCoordinatableView, we can hardcode it
+        router = NavigationRouter(
+            id: -1,
+            coordinator: coordinator.routerStorable
+        )
+        RouterStore.shared.store(router: router)
+
         bindToStack()
     }
 
@@ -135,10 +149,13 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
             .store(in: &cancellables)
 
         // Notify SwiftUI when the *root* itself swaps out (e.g. tab change).
+        // Access root only once here to minimize ensureRoot calls
         stack.safeRoot(with: coordinator).$item
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.rootChangeId = UUID() }
+            .sink { [weak self] _ in
+                self?.rootChangeId = UUID()
+            }
             .store(in: &cancellables)
     }
 
