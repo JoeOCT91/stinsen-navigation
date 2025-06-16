@@ -27,13 +27,15 @@ struct TodosScreen: View {
                 }
 
                 ForEach(todosStore.all) { todo in
-                    Button(todo.name, action: {
-//                        todosRouter.route(to: \.todo, todo.id)
-                    })
+                    Button(todo.name) {
+                        todosRouter.route(to: \.todo, todo.id)
+                    }
                 }
             }
             .padding()
         }
+        .toolbar(.visible, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.large)
         .navigationTitle("This is the Todos screen")
     }
 

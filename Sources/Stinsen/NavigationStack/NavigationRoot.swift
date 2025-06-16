@@ -74,6 +74,5 @@ struct NavigationRootItem {
         self.input = input
         childWrapper = AnyPresentableWrapper(child)
         instanceId = UUID()
-        print("🆕 Created NavigationRootItem with keyPath \(keyPath), instanceId \(instanceId.uuidString.prefix(8))")
     }
 }
