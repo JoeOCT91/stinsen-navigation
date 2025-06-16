@@ -608,7 +608,9 @@ public extension NavigationCoordinatable {
     }
 
     var embeddedInStack: Bool {
-        true
+        // Only embed NavigationStack if we don't have a parent (i.e., we're a root coordinator)
+        // This prevents nested NavigationStack conflicts when coordinators are pushed
+        parent == nil
     }
 
     /// Default implementation returns the view unchanged.
@@ -808,9 +810,8 @@ public extension NavigationCoordinatable {
         return self.route(to: route)
     }
 
-    @discardableResult func route<Output: Coordinatable>(
-        to route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
-    ) -> Output {
+    @discardableResult
+    func route<Output: Coordinatable>(to route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>) -> Output {
         let transition = self[keyPath: route]
         let output = transition.closure(self)(())
         stack.value.append(
@@ -1281,5 +1282,125 @@ public extension NavigationCoordinatable {
         comparator: @escaping (Input, Input) -> Bool
     ) -> Output? {
         return _hasRoot(route, inputItem: (input: input, comparator: comparator))
+    }
+
+    // MARK: - Child Coordinator Routes
+
+    /// Routes to a ChildCoordinatable destination with input parameters.
+    /// Child coordinators share the same navigation stack and can control their portion of it.
+    ///
+    /// - Parameters:
+    ///   - route: KeyPath to the route transition that creates the target child coordinator
+    ///   - input: Parameters passed to the child coordinator creation closure
+    /// - Returns: The newly created child coordinator instance
+    ///
+    /// ## Example
+    /// ```swift
+    /// let detailChild = coordinator.routeToChild(to: \.detailChild, detailData)
+    /// ```
+    @discardableResult func routeToChild<Input, Output: ChildCoordinatable>(
+        to route: KeyPath<Self, Transition<Self, Presentation, Input, Output>>,
+        _ input: Input
+    ) -> Output where Output.Parent == Self {
+        let transition = self[keyPath: route]
+        let output = transition.closure(self)(input)
+
+        // Create the navigation stack item for the child's root
+        let childRootItem = NavigationStackItem(
+            presentationType: transition.type.type,
+            presentable: output,
+            keyPath: route.hashValue,
+            input: input
+        )
+
+        // Add to stack
+        stack.value.append(childRootItem)
+
+        // Set up parent-child relationship
+        output.parent = self
+
+        return output
+    }
+
+    /// Routes to a ChildCoordinatable destination without input parameters.
+    ///
+    /// - Parameter route: KeyPath to the route transition that creates the target child coordinator
+    /// - Returns: The newly created child coordinator instance
+    @discardableResult func routeToChild<Output: ChildCoordinatable>(
+        to route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
+    ) -> Output where Output.Parent == Self {
+        let transition = self[keyPath: route]
+        let output = transition.closure(self)(())
+
+        // Create the navigation stack item for the child's root
+        let childRootItem = NavigationStackItem(
+            presentationType: transition.type.type,
+            presentable: output,
+            keyPath: route.hashValue,
+            input: nil
+        )
+
+        // Add to stack
+        stack.value.append(childRootItem)
+
+        // Set up parent-child relationship
+        output.parent = self
+
+        return output
+    }
+
+    /// Routes to multiple coordinators by sharing the navigation stack.
+    /// This allows pushing multiple coordinators without nested NavigationStack issues.
+    ///
+    /// - Parameters:
+    ///   - route: KeyPath to the route transition that creates a NavigationCoordinatable
+    ///   - input: Parameters passed to the coordinator creation closure
+    /// - Returns: The newly created coordinator that shares this coordinator's stack
+    @discardableResult func routeShared<Input, Output: NavigationCoordinatable>(
+        to route: KeyPath<Self, Transition<Self, Presentation, Input, Output>>,
+        _ input: Input
+    ) -> Output {
+        let transition = self[keyPath: route]
+        let coordinator = transition.closure(self)(input)
+
+        // Create the navigation stack item
+        let sharedItem = NavigationStackItem(
+            presentationType: transition.type.type,
+            presentable: coordinator,
+            keyPath: route.hashValue,
+            input: input
+        )
+
+        // Add to stack - this coordinator will share our stack
+        stack.value.append(sharedItem)
+
+        // Set up parent-child relationship but don't give it its own NavigationStack
+        coordinator.parent = self
+
+        return coordinator
+    }
+
+    /// Routes to multiple coordinators by sharing the navigation stack (no input).
+    @discardableResult func routeShared<Output: NavigationCoordinatable>(
+        to route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
+    ) -> Output {
+        let transition = self[keyPath: route]
+        let coordinator = transition.closure(self)(())
+
+        // Create the navigation stack item
+        let sharedItem = NavigationStackItem(
+            presentationType: transition.type.type,
+            presentable: coordinator,
+            keyPath: route.hashValue,
+            input: nil
+        )
+
+        // Add to stack - this coordinator will share our stack
+        stack.value.append(sharedItem)
+
+        // Set up parent-child relationship but don't give it its own NavigationStack
+        coordinator.parent = self
+
+        return coordinator
     }
 }

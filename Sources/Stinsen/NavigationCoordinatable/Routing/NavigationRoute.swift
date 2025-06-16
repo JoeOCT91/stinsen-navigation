@@ -358,3 +358,47 @@ extension NavigationContent: NavigationRouteCollectable {
         return AnyNavigationWrapper(coordinator: coordinator, input: input, content: self)
     }
 }
+
+// MARK: - ChildCoordinatable Extensions
+
+public extension NavigationRoute where Output: ChildCoordinatable {
+    // Presentation - ChildCoordinatable without input (Void)
+    init(
+        wrappedValue: @escaping (T) -> () -> Output,
+        _ presentation: PresentationType
+    ) where U == Presentation, Input == Void {
+        let closureValue: (T) -> (Input) -> Output = { coordinator in { (_: Input) in wrappedValue(coordinator)() } }
+        closure = closureValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: closureValue)
+    }
+
+    // Presentation - ChildCoordinatable with input
+    init(
+        wrappedValue: @escaping (T) -> (Input) -> Output,
+        _ presentation: PresentationType
+    ) where U == Presentation {
+        closure = wrappedValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: wrappedValue)
+    }
+}
+
+public extension Root where Output: ChildCoordinatable {
+    // Root - ChildCoordinatable without input (Void)
+    init(
+        _ closureValue: @escaping (T) -> () -> Output
+    ) where Input == Void {
+        let adaptedClosure: (T) -> (Input) -> Output = { coordinator in { (_: Input) in closureValue(coordinator)() } }
+        closure = adaptedClosure
+        transition = Transition(type: RootSwitch(), closure: adaptedClosure)
+    }
+
+    // Root - ChildCoordinatable with input
+    init(
+        _ closureValue: @escaping (T) -> (Input) -> Output
+    ) {
+        closure = closureValue
+        transition = Transition(type: RootSwitch(), closure: closureValue)
+    }
+}

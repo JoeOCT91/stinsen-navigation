@@ -22,22 +22,23 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
     // MARK: - Computed state for SwiftUI
 
-    /// Regular views in the push stack (non‑coordinators *before* the last pushed coordinator).
+    /// All push items in the stack (including coordinators and regular views).
+    /// This supports the shared navigation stack approach where multiple coordinators
+    /// can be pushed and share the same NavigationStack without nesting conflicts.
     public var pushPath: [NavigationStackItem] {
-        let pushItems = stack.value.filter(\.isPush)
-        guard let lastCoordinator = pushItems.last(where: \.isCoordinator) else {
-            return pushItems.filter(\.isRegular)
-        }
-
-        return Array(pushItems
-            .prefix { $0.id != lastCoordinator.id }
-            .filter(\.isRegular)
-        )
+        return stack.value.filter(\.isPush)
     }
 
-    /// The last pushed coordinator (if any).
+    /// The first (and only) pushed NavigationCoordinatable in the stack.
+    /// NavigationCoordinatable coordinators manage their own stack independently.
     public var pushedCoordinator: NavigationStackItem? {
-        stack.value.filter(\.isPush).last(where: \.isCoordinator)
+        stack.value.filter(\.isPush).first(where: \.isNavigationCoordinator)
+    }
+
+    /// All pushed coordinators in the stack (includes both NavigationCoordinatable and ChildCoordinatable).
+    /// ChildCoordinatable coordinators share the parent's stack, so multiple can exist.
+    public var pushedCoordinators: [NavigationStackItem] {
+        return stack.value.filter(\.isPush).filter(\.isCoordinator)
     }
 
     /// The current modal item (if any).
@@ -108,7 +109,7 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
     // MARK: ‑ Internals
 
-    @ObservedObject private var coordinator: T
+    private var coordinator: T
     private var cancellables = Set<AnyCancellable>()
     private var stack: NavigationStack<T> { coordinator.stack }
 
@@ -159,10 +160,17 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
         }
 
         if let coordinator = pushedCoordinator {
-            print("🎯 Pushed coordinator: \(String(describing: type(of: coordinator.presentable)))")
+            print("🎯 Pushed NavigationCoordinator: \(String(describing: type(of: coordinator.presentable)))")
         }
 
-        print("🛤️ Push path: \(pushPath.count) items")
+        let childCoordinators = pushedCoordinators.filter(\.isChildCoordinator)
+        if !childCoordinators.isEmpty {
+            print("👶 Child coordinators: \(childCoordinators.map { String(describing: type(of: $0.presentable)) })")
+        }
+
+        print(
+            "🛤️ Push path: \(pushPath.count) items (includes \(pushedCoordinators.count) coordinators: \(pushedCoordinators.filter(\.isNavigationCoordinator).count) navigation + \(childCoordinators.count) child)"
+        )
     }
 
     // MARK: ‑ Dismissal hooks (call from SwiftUI)
@@ -170,6 +178,27 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
     public func handleCoordinatorDismissal() { dismiss { $0.isCoordinator } }
     public func handleModalDismissal() { dismiss { $0.isModal } }
     public func handleFullScreenDismissal() { dismiss { $0.isFullScreen } }
+
+    /// Handles dismissal of a specific coordinator at the given index
+    public func handleCoordinatorDismissal(at index: Int) {
+        let coordinators = pushedCoordinators
+        guard index >= 0 && index < coordinators.count else {
+            print("⚠️ Invalid coordinator index \(index) for \(coordinators.count) coordinators")
+            return
+        }
+
+        let coordinatorToDismiss = coordinators[index]
+        guard let stackIndex = stack.value.firstIndex(where: { $0.id == coordinatorToDismiss.id }) else {
+            print("⚠️ Coordinator not found in main stack")
+            return
+        }
+
+        let targetIndex = stackIndex - 1
+        print("🗑️ Dismissing coordinator at stack index \(stackIndex), target: \(targetIndex)")
+
+        stack.dismissalAction[stackIndex]?()
+        coordinator.popTo(targetIndex, nil)
+    }
 
     /// Call from `NavigationStack`'s `onChange(of: pushPath)`.
     public func handlePushPathChange(_ newPath: [NavigationStackItem]) {
@@ -225,8 +254,10 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
 // MARK: ‑ Convenience predicates
 
-private extension NavigationStackItem {
+public extension NavigationStackItem {
     var isCoordinator: Bool { presentable is any Coordinatable }
+    var isNavigationCoordinator: Bool { presentable is any NavigationCoordinatable }
+    var isChildCoordinator: Bool { presentable is any ChildCoordinatable }
     var isRegular: Bool { presentationType == .push && !isCoordinator }
     var isPush: Bool { presentationType == .push }
     var isModal: Bool { presentationType == .modal }
@@ -242,8 +273,8 @@ public extension PresentationHelper {
 
     func createCoordinatorContent(for item: NavigationStackItem) -> some View {
         Group {
-            if let coordinator = item.presentable as? any Coordinatable {
-                CoordinatorContentView(coordinator: coordinator)
+            if item.presentable is (any NavigationCoordinatable) {
+                CoordinatorContentView(item: item)
             } else {
                 DestinationContentView(item: item)
             }
@@ -257,6 +288,6 @@ private struct DestinationContentView: View {
 }
 
 private struct CoordinatorContentView: View {
-    let coordinator: any Coordinatable
-    var body: some View { AnyView(coordinator.view()) }
+    let item: NavigationStackItem
+    var body: some View { item.presentableWrapper.createView() }
 }
