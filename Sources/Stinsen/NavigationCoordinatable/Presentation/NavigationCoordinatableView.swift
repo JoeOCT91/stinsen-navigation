@@ -43,23 +43,6 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// Router instance for navigation operations
     private let router: NavigationRouter<T>
 
-    /// Computed binding for coordinator presentation
-    ///
-    /// This binding is the source of truth for coordinator dismissals.
-    /// When SwiftUI dismisses a coordinator (via swipe back, navigation, etc.),
-    /// the setter is called with false, which triggers the coordinator stack update.
-    private var coordinatorBinding: Binding<Bool> {
-        Binding(
-            get: { presentationHelper.pushedCoordinator != nil },
-            set: { isPresented in
-                if !isPresented {
-                    // SwiftUI dismissed the coordinator - delegate to presentation helper
-                    presentationHelper.handleCoordinatorDismissal()
-                }
-            }
-        )
-    }
-
     /// Initializes a new NavigationCoordinatableView for the specified coordinator.
     ///
     /// Sets up the presentation helper, router, and ensures the navigation stack
@@ -148,10 +131,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     private var modernNavigationDestinations: some View {
         rootContent
             .navigationDestination(for: NavigationStackItem.self) { item in
-                createDestinationView(for: item)
-            }
-            .navigationDestination(item: presentationHelper.pushedCoordinatorBinding) { coordinatorItem in
-                createCoordinatorView(for: coordinatorItem)
+                createNavigationDestination(for: item)
             }
     }
 
@@ -160,27 +140,34 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     private var legacyNavigationDestinations: some View {
         rootContent
             .navigationDestination(for: NavigationStackItem.self) { item in
-                createDestinationView(for: item)
-            }
-            .navigationDestination(isPresented: coordinatorBinding) {
-                if let coordinatorItem = presentationHelper.pushedCoordinator {
-                    createCoordinatorView(for: coordinatorItem)
-                }
+                createNavigationDestination(for: item)
             }
     }
 
-    /// Creates a destination view for a navigation stack item
+    /// Creates a unified navigation destination for any navigation stack item
+    /// Handles both regular views and coordinators (NavigationCoordinatable and ChildCoordinatable)
     @ViewBuilder
-    private func createDestinationView(for item: NavigationStackItem) -> some View {
-        presentationHelper.createDestinationContent(for: item)
-            .environmentObject(router)
-    }
-
-    /// Creates a coordinator view for a pushed coordinator
-    @ViewBuilder
-    private func createCoordinatorView(for coordinatorItem: NavigationStackItem) -> some View {
-        presentationHelper.createCoordinatorContent(for: coordinatorItem)
-            .environmentObject(router)
+    private func createNavigationDestination(for item: NavigationStackItem) -> some View {
+        if item.isCoordinator {
+            // Handle both NavigationCoordinatable and ChildCoordinatable
+            if item.isNavigationCoordinator {
+                // NavigationCoordinatable: Create independent coordinator view
+                presentationHelper.createCoordinatorContent(for: item)
+                    .environmentObject(router)
+            } else if item.isChildCoordinator {
+                // ChildCoordinatable: Create view that shares this coordinator's stack
+                presentationHelper.createDestinationContent(for: item)
+                    .environmentObject(router)
+            } else {
+                // Fallback for other coordinator types
+                presentationHelper.createCoordinatorContent(for: item)
+                    .environmentObject(router)
+            }
+        } else {
+            // Regular view
+            presentationHelper.createDestinationContent(for: item)
+                .environmentObject(router)
+        }
     }
 
     /// Creates content for modal and full-screen presentations
