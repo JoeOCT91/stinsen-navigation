@@ -34,11 +34,11 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// Manages all navigation presentation state and logic
     @StateObject private var presentationHelper: PresentationHelper<T>
 
-    /// The coordinator that this view represents
-    @ObservedObject private var coordinator: T
-
     /// Unique identifier for this view instance
     private let id: Int
+
+    /// The coordinator that this view represents
+    private var coordinator: T
 
     /// Router instance for navigation operations
     private let router: NavigationRouter<T>
@@ -75,7 +75,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// - `>= 0`: Child view content at specific stack index
     init(id: Int, coordinator: T) {
         self.id = id
-        _coordinator = ObservedObject(wrappedValue: coordinator)
+        self.coordinator = coordinator
 
         router = NavigationRouter(
             id: id,
@@ -97,19 +97,22 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     var body: some View {
         contentView
             .environmentObject(router)
-            .onReceive(presentationHelper.$pushPath) { newPath in
-                presentationHelper.handlePushPathChange(newPath)
-            }
-            .onReceive(presentationHelper.$rootChangeId) { _ in
-                print("🔄 NavigationCoordinatableView: Root change detected, forcing view update")
-            }
-            // Handle modal presentations
-            .sheet(item: $presentationHelper.modalItem) { modalItem in
+            .sheet(
+                item: presentationHelper.modalBinding,
+                onDismiss: {
+                    presentationHelper.handleModalDismissal()
+                }
+            ) { modalItem in
                 createPresentationContent(for: modalItem)
                     .environmentObject(router)
             }
             // Handle full-screen presentations (iOS only, falls back to sheet on other platforms)
-            .fullScreenCoverIfAvailable(item: $presentationHelper.fullScreenItem) { fullScreenItem in
+            .fullScreenCoverIfAvailable(
+                item: presentationHelper.fullScreenBinding,
+                onDismiss: {
+                    presentationHelper.handleFullScreenDismissal()
+                }
+            ) { fullScreenItem in
                 createPresentationContent(for: fullScreenItem)
                     .environmentObject(router)
             }
@@ -121,7 +124,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     @ViewBuilder
     private var contentView: some View {
         if coordinator.embeddedInStack {
-            SwiftUI.NavigationStack(path: $presentationHelper.pushPath) {
+            SwiftUI.NavigationStack(path: presentationHelper.pushPathBinding) {
                 navigationStackContent
             }
         } else {
@@ -147,7 +150,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
             .navigationDestination(for: NavigationStackItem.self) { item in
                 createDestinationView(for: item)
             }
-            .navigationDestination(item: $presentationHelper.pushedCoordinator) { coordinatorItem in
+            .navigationDestination(item: presentationHelper.pushedCoordinatorBinding) { coordinatorItem in
                 createCoordinatorView(for: coordinatorItem)
             }
     }
@@ -164,23 +167,6 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                     createCoordinatorView(for: coordinatorItem)
                 }
             }
-    }
-
-    // MARK: - Platform-Specific Extensions
-
-    private extension View {
-        /// Applies full-screen cover on iOS, sheet on other platforms
-        @ViewBuilder
-        func fullScreenCoverIfAvailable<Item: Identifiable, Content: View>(
-            item: Binding<Item?>,
-            content: @escaping (Item) -> Content
-        ) -> some View {
-            #if os(iOS)
-                fullScreenCover(item: item, content: content)
-            #else
-                sheet(item: item, content: content)
-            #endif
-        }
     }
 
     /// Creates a destination view for a navigation stack item
@@ -230,5 +216,23 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                 AnyView(rootItem.child.view())
             )
         }
+    }
+}
+
+// MARK: - Platform-Specific Extensions
+
+private extension View {
+    /// Applies full-screen cover on iOS, sheet on other platforms
+    @ViewBuilder
+    func fullScreenCoverIfAvailable<Item: Identifiable, Content: View>(
+        item: Binding<Item?>,
+        onDismiss: (() -> Void)? = nil,
+        content: @escaping (Item) -> Content
+    ) -> some View {
+        #if os(iOS)
+            fullScreenCover(item: item, onDismiss: onDismiss, content: content)
+        #else
+            sheet(item: item, onDismiss: onDismiss, content: content)
+        #endif
     }
 }

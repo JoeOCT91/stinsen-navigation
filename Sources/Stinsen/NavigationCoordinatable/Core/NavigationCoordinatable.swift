@@ -704,33 +704,46 @@ public extension NavigationCoordinatable {
         popTo(stack.value.count - 2, action)
     }
 
-    /// Internal method for popping to a specific stack index.
-    ///
-    /// Removes all navigation items after the specified index, effectively
-    /// "popping" to that position in the navigation hierarchy.
-    ///
-    /// - Parameters:
-    ///   - int: Target stack index (-1 for root, >= 0 for specific positions)
-    ///   - action: Optional closure to execute after popping completes
+    /// Pops the navigation stack to the specified index.
     ///
     /// ## Index Convention
     /// - `-1`: Pop to root (empty stack)
     /// - `>= 0`: Pop to specific stack position
     internal func popTo(_ int: Int, _ action: (() -> Void)? = nil) {
+        print("📤 PopTo: target=\(int), current stack size=\(stack.value.count)")
+
         if let action = action {
             stack.dismissalAction[int] = action
         }
 
+        // Enhanced bounds checking
+        guard int >= -1 else {
+            print("⚠️ PopTo: Invalid negative index \(int)")
+            return
+        }
+
         guard int + 1 <= stack.value.count else {
+            print("⚠️ PopTo: Target index \(int) too large for stack size \(stack.value.count)")
             return
         }
 
         if int == -1 {
+            print("📤 PopTo: Clearing entire stack")
             stack.value = []
             stack.poppedTo.send(-1)
         } else if int >= 0 {
-            stack.value = Array(stack.value.prefix(int + 1))
+            let newSize = int + 1
+            print("📤 PopTo: Keeping first \(newSize) items, removing \(stack.value.count - newSize) items")
+
+            // Additional safety check before using prefix
+            guard newSize <= stack.value.count else {
+                print("⚠️ PopTo: Calculated new size \(newSize) exceeds current stack size \(stack.value.count)")
+                return
+            }
+
+            stack.value = Array(stack.value.prefix(newSize))
             stack.poppedTo.send(int)
+            print("📤 PopTo: Stack now has \(stack.value.count) items")
         }
     }
 

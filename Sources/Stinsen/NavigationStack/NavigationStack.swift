@@ -165,7 +165,7 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
         let presentable: any ViewPresentable
 
         // Try to cast to TypeSafeNavigationOutputable (for @NavigationRoute)
-        if let transition = routeValue as? TypeSafeNavigationOutputable {
+        if let transition = routeValue as? any TypeSafeNavigationOutputable {
             presentable = transition.using(coordinator: coordinator, input: initialInput as Any)
         } else {
             // Fallback for @Root property wrapper
@@ -183,7 +183,7 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
     }
 
     /// Finds the transition from a @Root property wrapper using reflection.
-    private static func findRootTransition(in coordinator: T, for keyPath: PartialKeyPath<T>) -> TypeSafeNavigationOutputable {
+    private static func findRootTransition(in coordinator: T, for keyPath: PartialKeyPath<T>) -> any TypeSafeNavigationOutputable {
         let mirror = Mirror(reflecting: coordinator)
 
         // Look for Root property wrappers in the coordinator

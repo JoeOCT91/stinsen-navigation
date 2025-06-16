@@ -53,7 +53,7 @@ struct NavigationRootItem {
     let input: Any?
 
     /// The type-safe presentable wrapper that preserves associated type information
-    let childWrapper: AnyPresentableWrapper
+    let childWrapper: PresentableWrapper
 
     /// Unique identifier for this item instance to ensure proper change detection
     let instanceId: UUID
@@ -72,7 +72,7 @@ struct NavigationRootItem {
     init<P: ViewPresentable>(keyPath: Int, input: Any?, child: P) {
         self.keyPath = keyPath
         self.input = input
-        childWrapper = AnyPresentableWrapper(child)
+        childWrapper = PresentableWrapper(child)
         instanceId = UUID()
     }
 }
