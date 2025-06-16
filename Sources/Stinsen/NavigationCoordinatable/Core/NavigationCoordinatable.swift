@@ -989,6 +989,9 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Output {
+        // Reset stack to allow root switching
+        stack.value.removeAll()
+
         // Ensure root is available before accessing it
         let safeRoot = stack.safeRoot(with: self)
 
@@ -1042,6 +1045,9 @@ public extension NavigationCoordinatable {
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Self {
+        // Reset stack to allow root switching
+        stack.value.removeAll()
+
         // Ensure root is available before accessing it
         let safeRoot = stack.safeRoot(with: self)
 
