@@ -204,9 +204,7 @@ public protocol NavigationCoordinatable: Coordinatable {
     /// try coordinator.focusFirst(\.homeView)
     /// ```
     @discardableResult
-    func focusFirst<Output: View>(
-        _ route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>
-    ) throws -> Self
+    func focusFirst<Output: View>(_ route: KeyPath<Self, Transition<Self, Presentation, Void, Output>>) throws -> Self
 
     /// Searches the navigation stack for a coordinator route with specific input and focuses on it.
     ///
@@ -712,7 +710,7 @@ public extension NavigationCoordinatable {
     /// - `-1`: Pop to root (empty stack)
     /// - `>= 0`: Pop to specific stack position
     internal func popTo(_ int: Int, _ action: (() -> Void)? = nil) {
-        print("📤 PopTo: target=\(int), current stack size=\(stack.value.count)")
+        StinsenLogger.logNavigation("PopTo", target: int, stackSize: stack.value.count)
 
         if let action = action {
             stack.dismissalAction[int] = action
@@ -720,32 +718,32 @@ public extension NavigationCoordinatable {
 
         // Enhanced bounds checking
         guard int >= -1 else {
-            print("⚠️ PopTo: Invalid negative index \(int)")
+            StinsenLogger.logError("PopTo: Invalid negative index \(int)", category: .navigation)
             return
         }
 
         guard int + 1 <= stack.value.count else {
-            print("⚠️ PopTo: Target index \(int) too large for stack size \(stack.value.count)")
+            StinsenLogger.logError("PopTo: Target index \(int) too large for stack size \(stack.value.count)", category: .navigation)
             return
         }
 
         if int == -1 {
-            print("📤 PopTo: Clearing entire stack")
+            StinsenLogger.logNavigation("PopTo", operation: "Clearing entire stack")
             stack.value = []
             stack.poppedTo.send(-1)
         } else if int >= 0 {
             let newSize = int + 1
-            print("📤 PopTo: Keeping first \(newSize) items, removing \(stack.value.count - newSize) items")
+            StinsenLogger.logNavigation("PopTo", operation: "Keeping first \(newSize) items, removing \(stack.value.count - newSize) items")
 
             // Additional safety check before using prefix
             guard newSize <= stack.value.count else {
-                print("⚠️ PopTo: Calculated new size \(newSize) exceeds current stack size \(stack.value.count)")
+                StinsenLogger.logError("PopTo: Calculated new size \(newSize) exceeds current stack size \(stack.value.count)", category: .navigation)
                 return
             }
 
             stack.value = Array(stack.value.prefix(newSize))
             stack.poppedTo.send(int)
-            print("📤 PopTo: Stack now has \(stack.value.count) items")
+            StinsenLogger.logNavigation("PopTo", operation: "Stack now has \(stack.value.count) items")
         }
     }
 
@@ -986,59 +984,64 @@ public extension NavigationCoordinatable {
         try _focusFirst(route, nil)
     }
 
-    @discardableResult private func _root<Output: Coordinatable, Input>(
+    @discardableResult
+    private func _root<Output: Coordinatable, Input>(
         _ route: KeyPath<Self, Transition<Self, RootSwitch, Input, Output>>,
         inputItem: (input: Input, comparator: (Input, Input) -> Bool)?
     ) -> Output {
-        // Reset stack to allow root switching
+        // Clear the stack for root transition
         stack.value.removeAll()
 
-        // Ensure root is available before accessing it
+        // Get current root safely
         let safeRoot = stack.safeRoot(with: self)
+        let currentRoot = safeRoot.item
 
-        // Check if we already have the same root with matching input
-        let isSameRoot = safeRoot.item.keyPath == route.hashValue
-        let hasSameInput: Bool
+        let isSameRoute = currentRoot.keyPath == route.hashValue
 
-        if let inputItem = inputItem {
-            if let existingInput = safeRoot.item.input {
-                hasSameInput = inputItem.comparator(inputItem.input, existingInput as! Input)
-            } else {
-                hasSameInput = false
+        // Check input match
+        let hasSameInput: Bool = {
+            guard let expected = inputItem else {
+                return currentRoot.input == nil
             }
-        } else {
-            hasSameInput = safeRoot.item.input == nil
+            guard let existing = currentRoot.input as? Input else {
+                return false
+            }
+            return expected.comparator(expected.input, existing)
+        }()
+
+        // Return existing root if route and input match
+        if isSameRoute && hasSameInput {
+            StinsenLogger.logRoute("Root already matches", route: "coordinator", details: "returning existing coordinator")
+            return currentRoot.child as! Output
         }
 
-        // Only return existing root if both route and input match exactly
-        if isSameRoot && hasSameInput {
-            print("🔄 Root already matches - returning existing coordinator")
-            return safeRoot.item.child as! Output
+        // Log root switching if applicable
+        if !isSameRoute {
+            StinsenLogger.logRoute("Root switch detected", route: "coordinator", details: "from \(currentRoot.keyPath) to \(route.hashValue)")
         }
 
-        print("🔄 Creating new root for route \(route.hashValue)")
-
-        // If we're switching to a different root, we need to handle it properly
-        if !isSameRoot {
-            print("🔄 Root switch detected: from \(safeRoot.item.keyPath) to \(route.hashValue)")
-        }
-
+        // Instantiate new output using transition closure
+        let transition = self[keyPath: route]
         let output: Output
 
         if let input = inputItem?.input {
-            output = self[keyPath: route].closure(self)(input)
+            output = transition.closure(self)(input)
         } else {
-            output = self[keyPath: route].closure(self)(() as! Input)
+            guard let emptyInput = () as? Input else {
+                fatalError("Unable to cast Void to expected Input")
+            }
+            output = transition.closure(self)(emptyInput)
         }
 
-        // Always create a new NavigationRootItem to trigger proper updates
+        // Update root item with new state
         safeRoot.item = NavigationRootItem(
             keyPath: route.hashValue,
             input: inputItem?.input,
             child: output
         )
 
-        print("🔄 Root updated to keyPath \(route.hashValue) with coordinator \(type(of: output))")
+        StinsenLogger.logRoute("Root updated", route: "coordinator", details: "keyPath \(route.hashValue) with coordinator \(type(of: output))")
+
         return output
     }
 
@@ -1068,15 +1071,15 @@ public extension NavigationCoordinatable {
 
         // Only return early if both route and input match exactly
         if isSameRoot && hasSameInput {
-            print("🔄 Root view already matches - returning self")
+            StinsenLogger.logRoute("Root view already matches", route: "view", details: "returning self")
             return self
         }
 
-        print("🔄 Creating new root view for route \(route.hashValue)")
+        StinsenLogger.logRoute("Creating new root view", route: "view", details: "route \(route.hashValue)")
 
         // If we're switching to a different root, we need to handle it properly
         if !isSameRoot {
-            print("🔄 Root view switch detected: from \(safeRoot.item.keyPath) to \(route.hashValue)")
+            StinsenLogger.logRoute("Root view switch detected", route: "view", details: "from \(safeRoot.item.keyPath) to \(route.hashValue)")
         }
 
         let output: Output
@@ -1094,7 +1097,7 @@ public extension NavigationCoordinatable {
             child: AnyView(output)
         )
 
-        print("🔄 Root view updated to keyPath \(route.hashValue)")
+        StinsenLogger.logRoute("Root view updated", route: "view", details: "keyPath \(route.hashValue)")
         return self
     }
 

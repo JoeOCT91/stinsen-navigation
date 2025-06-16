@@ -17,8 +17,11 @@ public class NavigationRoot: ObservableObject {
     /// observing this NavigationRoot instance.
     @Published var item: NavigationRootItem {
         didSet {
-            print("🔄 NavigationRoot.item changed from instanceId \(oldValue.instanceId.uuidString.prefix(8)) to \(item.instanceId.uuidString.prefix(8))")
-            print("🔄 Old keyPath: \(oldValue.keyPath), New keyPath: \(item.keyPath)")
+            StinsenLogger.logDebug(
+                "NavigationRoot.item changed from instanceId \(oldValue.instanceId.uuidString.prefix(8)) to \(item.instanceId.uuidString.prefix(8))",
+                category: .navigation
+            )
+            StinsenLogger.logDebug("Old keyPath: \(oldValue.keyPath), New keyPath: \(item.keyPath)", category: .navigation)
             // Force explicit objectWillChange notification to ensure UI updates
             DispatchQueue.main.async { [weak self] in
                 self?.objectWillChange.send()
@@ -31,7 +34,7 @@ public class NavigationRoot: ObservableObject {
     /// - Parameter item: The NavigationRootItem that represents the initial route
     init(item: NavigationRootItem) {
         self.item = item
-        print("🏠 NavigationRoot initialized with keyPath \(item.keyPath), instanceId \(item.instanceId.uuidString.prefix(8))")
+        StinsenLogger.logDebug("NavigationRoot initialized with keyPath \(item.keyPath), instanceId \(item.instanceId.uuidString.prefix(8))", category: .navigation)
     }
 }
 

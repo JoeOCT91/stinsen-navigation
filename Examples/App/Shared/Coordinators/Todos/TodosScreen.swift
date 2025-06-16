@@ -33,16 +33,15 @@ struct TodosScreen: View {
                 }
             }
             .padding()
+            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("My ToDos Screen")
         }
-        .toolbar(.visible, for: .navigationBar)
-        .navigationBarTitleDisplayMode(.large)
-        .navigationTitle("This is the Todos screen")
     }
 
     var button: some View {
         Button(
             action: {
-//                todosRouter.route(to: \.createTodo)
+                todosRouter.route(to: \.createTodo)
             },
             label: {
                 Image(systemName: "folder.badge.plus")

@@ -2,30 +2,26 @@ import Stinsen
 import SwiftUI
 
 extension AuthenticatedCoordinator {
-    func makeTestbed() -> NavigationViewCoordinator<TestbedEnvironmentObjectCoordinator> {
-        return NavigationViewCoordinator(TestbedEnvironmentObjectCoordinator())
+    func makeTestbed() -> TestbedEnvironmentObjectCoordinator {
+        return TestbedEnvironmentObjectCoordinator()
     }
 
-    func onTestbedTapped(
-        isRepeat: Bool, coordinator: NavigationViewCoordinator<TestbedEnvironmentObjectCoordinator>
-    ) {
+    func onTestbedTapped(isRepeat: Bool, coordinator: TestbedEnvironmentObjectCoordinator) {
         if isRepeat {
-            coordinator.child.popToRoot()
+            coordinator.popToRoot()
         }
     }
 
-    func makeHome() -> NavigationViewCoordinator<HomeCoordinator> {
-        return NavigationViewCoordinator(HomeCoordinator(todosStore: todosStore))
-    }
-
-
-
-    func makeProfile() -> NavigationViewCoordinator<ProfileCoordinator> {
-        return NavigationViewCoordinator(ProfileCoordinator(user: user))
+    func makeHome() -> HomeCoordinator {
+        return HomeCoordinator(todosStore: todosStore)
     }
 
     func makeTodos() -> TodosCoordinator {
-        return (TodosCoordinator(todosStore: todosStore))
+        return TodosCoordinator(todosStore: todosStore)
+    }
+
+    func makeProfile() -> ProfileCoordinator {
+        return ProfileCoordinator(user: user)
     }
 
     @ViewBuilder

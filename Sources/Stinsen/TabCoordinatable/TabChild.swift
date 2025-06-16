@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Simplified TabChild with Minimal Overhead
+
 /// Wrapper around childCoordinators
 /// Used so that you don't need to write @Published
 public class TabChild<T: TabCoordinatable>: ObservableObject {
@@ -21,8 +22,8 @@ public class TabChild<T: TabCoordinatable>: ObservableObject {
         }
         set {
             guard newValue != _activeTab,
-                newValue >= 0,
-                newValue < allItems.count
+                  newValue >= 0,
+                  newValue < allItems.count
             else { return }
 
             let oldValue = _activeTab
@@ -35,7 +36,7 @@ public class TabChild<T: TabCoordinatable>: ObservableObject {
 
     public init(routeDescriptors: [TabRouteDescriptor<T>], activeTab: Int = 0) {
         self.routeDescriptors = routeDescriptors
-        self._activeTab = max(0, activeTab)
+        _activeTab = max(0, activeTab)
     }
 
     // MARK: - Public Methods
@@ -43,13 +44,13 @@ public class TabChild<T: TabCoordinatable>: ObservableObject {
     /// Sets up all tab items. Should be called after initialization.
     func setAllItems(_ items: [AnyTabChildItem]) {
         guard !items.isEmpty else {
-            print("Warning: Attempting to set empty items array")
+            StinsenLogger.logWarning("Attempting to set empty items array", category: .coordinator)
             return
         }
 
         // Guard against multiple calls
         guard allItems.isEmpty else {
-            print("Warning: setAllItems called multiple times - ignoring subsequent calls")
+            StinsenLogger.logWarning("setAllItems called multiple times - ignoring subsequent calls", category: .coordinator)
             return
         }
 
@@ -103,10 +104,11 @@ public class TabChild<T: TabCoordinatable>: ObservableObject {
 }
 
 // MARK: - Extensions for Better API
+
 extension TabChild {
     /// Returns the item at the given index, if it exists
     func item(at index: Int) -> AnyTabChildItem? {
-        guard index >= 0 && index < allItems.count else { return nil }
+        guard index >= 0, index < allItems.count else { return nil }
         return allItems[index]
     }
 

@@ -6,7 +6,6 @@ import SwiftUI
 /// This coordinator shares the navigation stack with its parent (TestbedEnvironmentObjectCoordinator)
 final class TestbedChildCoordinator: ChildCoordinatable {
     typealias Parent = TestbedEnvironmentObjectCoordinator
-    typealias CustomizeViewType = AnyView
 
     weak var parent: TestbedEnvironmentObjectCoordinator?
     private let childId: Int
@@ -25,15 +24,6 @@ final class TestbedChildCoordinator: ChildCoordinatable {
     /// Creates the root view for this child coordinator
     var rootView: some View {
         TestbedChildScreen(coordinator: self)
-    }
-
-    /// Customize views within this child coordinator's scope
-    func customize(_ view: PresentedView) -> AnyView {
-        return AnyView(
-            view
-                .navigationTitle("Child \(childId)")
-                .navigationBarTitleDisplayMode(.inline)
-        )
     }
 
     /// Push another child coordinator to demonstrate multiple children

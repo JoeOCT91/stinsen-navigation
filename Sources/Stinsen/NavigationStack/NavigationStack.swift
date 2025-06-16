@@ -133,15 +133,11 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
     func ensureRoot(with coordinator: T) {
         // Guard ensures setup only happens once - early return if already initialized
         guard _root == nil else {
-            #if DEBUG
-                print("⚠️ NavigationStack.ensureRoot called multiple times - root already initialized")
-            #endif
+            StinsenLogger.logWarning("NavigationStack.ensureRoot called multiple times - root already initialized", category: .navigation)
             return
         }
 
-        #if DEBUG
-            print("🔧 NavigationStack.ensureRoot: Initializing root for \(String(describing: T.self))")
-        #endif
+        StinsenLogger.logDebug("NavigationStack.ensureRoot: Initializing root for \(String(describing: T.self))", category: .navigation)
 
         _root = NavigationStack.createRoot(coordinator: coordinator, initial: initial, initialInput: initialInput)
     }
@@ -153,9 +149,7 @@ public class NavigationStack<T: NavigationCoordinatable>: ObservableObject {
     ///
     /// - Warning: This should only be called during root switching operations
     func resetRoot() {
-        #if DEBUG
-            print("🔄 NavigationStack.resetRoot: Clearing root for re-initialization")
-        #endif
+        StinsenLogger.logDebug("NavigationStack.resetRoot: Clearing root for re-initialization", category: .navigation)
         _root = nil
     }
 

@@ -28,7 +28,7 @@ final class AuthenticatedCoordinator: TabCoordinatable {
             ]
         )
     }
-
+    
     deinit {
         print("De-init AuthenticatedCoordinator")
     }
