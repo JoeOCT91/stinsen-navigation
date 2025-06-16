@@ -34,6 +34,7 @@ public protocol NavigationCoordinatable: Coordinatable {
     associatedtype CustomizeViewType: View
     associatedtype RouterStoreType
 
+    var embeddedInStack: Bool { get }
     var routerStorable: RouterStoreType { get }
     var stack: NavigationStack<Self> { get set }
 
@@ -604,6 +605,10 @@ public extension NavigationCoordinatable {
         set {
             stack.parent = newValue
         }
+    }
+
+    var embeddedInStack: Bool {
+        true
     }
 
     /// Default implementation returns the view unchanged.

@@ -271,7 +271,7 @@ public struct Transition<T: NavigationCoordinatable, U: RouteType, Input, Output
 
 /// Protocol for accessing the transition from Root property wrappers
 public protocol RootTransitionProvider {
-    func getTransition() -> TypeSafeNavigationOutputable
+    func getTransition() -> any TypeSafeNavigationOutputable
 }
 
 // MARK: - Root Property Wrapper (for Root Routes)

@@ -69,28 +69,31 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
         let currentStack = navigationStack
         let stackItems = currentStack.value
 
-        // Get all push items
-        let allPushItems = stackItems.filter { $0.presentationType == .push }
+        // Separate items by presentation type
+        let pushItems = stackItems.filter { $0.presentationType == .push }
+        let modalItems = stackItems.filter { $0.presentationType == .modal }
+        let fullScreenItems = stackItems.filter { $0.presentationType == .fullScreen }
 
-        // Separate regular views from coordinators
-        let regularItems = allPushItems.filter { !($0.presentable is any Coordinatable) }
-        let coordinatorItems = allPushItems.filter { $0.presentable is any Coordinatable }
+        // === HANDLE PUSH NAVIGATION ===
+        // Separate regular views from coordinators in push stack
+        let regularPushItems = pushItems.filter { !($0.presentableWrapper.presentable is any Coordinatable) }
+        let coordinatorPushItems = pushItems.filter { $0.presentable is any Coordinatable }
 
         // Find the last (top-most) coordinator in the push stack
-        let lastCoordinator = coordinatorItems.last
+        let lastPushCoordinator = coordinatorPushItems.last
 
-        if let lastCoordinatorItem = lastCoordinator {
+        if let lastCoordinatorItem = lastPushCoordinator {
             // There's a coordinator in the push stack
             // Find regular items that come BEFORE the last coordinator
             let lastCoordinatorIndex = stackItems.firstIndex(where: { $0.id == lastCoordinatorItem.id }) ?? 0
-            let regularItemsBeforeCoordinator = regularItems.filter { regularItem in
+            let regularItemsBeforeCoordinator = regularPushItems.filter { regularItem in
                 if let regularIndex = stackItems.firstIndex(where: { $0.id == regularItem.id }) {
                     return regularIndex < lastCoordinatorIndex
                 }
                 return false
             }
 
-            // Update state: coordinator is active, regular path contains only items before coordinator
+            // Update push state: coordinator is active, regular path contains only items before coordinator
             if pushedCoordinator?.id != lastCoordinatorItem.id {
                 pushedCoordinator = lastCoordinatorItem
                 print("🎯 PresentationHelper: Set pushed coordinator to \(type(of: lastCoordinatorItem.presentable))")
@@ -100,14 +103,38 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
                 print("🛤️ PresentationHelper: Updated pushPath to \(regularItemsBeforeCoordinator.count) items (before coordinator)")
             }
         } else {
-            // No coordinator in push stack, show all regular items
-            if pushPath != regularItems {
-                pushPath = regularItems
-                print("🛤️ PresentationHelper: Updated pushPath to \(regularItems.count) regular items (no coordinator)")
+            // No coordinator in push stack, show all regular push items
+            if pushPath != regularPushItems {
+                pushPath = regularPushItems
+                print("🛤️ PresentationHelper: Updated pushPath to \(regularPushItems.count) regular push items (no coordinator)")
             }
             if pushedCoordinator != nil {
                 pushedCoordinator = nil
                 print("🎯 PresentationHelper: Cleared pushed coordinator")
+            }
+        }
+
+        // === HANDLE MODAL PRESENTATION ===
+        // Get the most recent modal item (only one modal can be active at a time)
+        let currentModalItem = modalItems.last
+        if modalItem?.id != currentModalItem?.id {
+            modalItem = currentModalItem
+            if let modalItem = currentModalItem {
+                print("📱 PresentationHelper: Set modal item to \(type(of: modalItem.presentable))")
+            } else {
+                print("📱 PresentationHelper: Cleared modal item")
+            }
+        }
+
+        // === HANDLE FULL-SCREEN PRESENTATION ===
+        // Get the most recent full-screen item (only one full-screen can be active at a time)
+        let currentFullScreenItem = fullScreenItems.last
+        if fullScreenItem?.id != currentFullScreenItem?.id {
+            fullScreenItem = currentFullScreenItem
+            if let fullScreenItem = currentFullScreenItem {
+                print("🖥️ PresentationHelper: Set full-screen item to \(type(of: fullScreenItem.presentable))")
+            } else {
+                print("🖥️ PresentationHelper: Cleared full-screen item")
             }
         }
     }
