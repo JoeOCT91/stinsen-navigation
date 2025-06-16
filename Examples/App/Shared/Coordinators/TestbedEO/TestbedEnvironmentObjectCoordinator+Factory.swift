@@ -75,8 +75,8 @@ extension TestbedEnvironmentObjectCoordinator {
         FullScreenTestView()
     }
 
-    func makeFullScreenCoordinator() -> NavigationViewCoordinator<TestbedEnvironmentObjectCoordinator> {
-        return NavigationViewCoordinator(TestbedEnvironmentObjectCoordinator(embeddedInStack: true))
+    func makeFullScreenCoordinator() -> TestbedEnvironmentObjectCoordinator {
+        return TestbedEnvironmentObjectCoordinator(embeddedInStack: true)
     }
 
     func makeStart() -> some View {
