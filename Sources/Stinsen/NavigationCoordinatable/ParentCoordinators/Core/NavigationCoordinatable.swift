@@ -608,7 +608,8 @@ public extension NavigationCoordinatable {
     var embeddedInStack: Bool {
         // Only embed NavigationStack if we don't have a parent (i.e., we're a root coordinator)
         // This prevents nested NavigationStack conflicts when coordinators are pushed
-        parent == nil
+        // parent == nil
+        true
     }
 
     /// Default implementation returns the view unchanged.

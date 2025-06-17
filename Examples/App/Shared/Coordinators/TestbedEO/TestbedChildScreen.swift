@@ -97,7 +97,7 @@ struct TestbedChildScreen: View {
                             icon: "xmark.circle.fill",
                             color: .red
                         ) {
-                            coordinator.dismissSelf()
+//                            coordinator.dismissSelf()
                         }
                     }
                 }

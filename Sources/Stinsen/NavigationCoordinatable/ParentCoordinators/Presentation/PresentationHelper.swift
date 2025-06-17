@@ -116,13 +116,17 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
     /// Router instance for navigation operations
     public let router: NavigationRouter<T>
 
+    /// View factory for creating navigation views
+    private let viewFactory: NavigationViewFactory
+
     /// Cached root to avoid repeated ensureRoot calls
     private var _cachedRoot: NavigationRoot?
 
     // MARK: ‑ Init
 
-    public init(coordinator: T) {
+    public init(coordinator: T, viewFactory: NavigationViewFactory = DefaultNavigationViewFactory()) {
         self.coordinator = coordinator
+        self.viewFactory = viewFactory
 
         // Create router and store it in RouterStore
         // Since id is always -1 for NavigationCoordinatableView, we can hardcode it
@@ -271,32 +275,30 @@ public extension NavigationStackItem {
     var isFullScreen: Bool { presentationType == .fullScreen }
 }
 
-// MARK: ‑ Lightweight view helpers (unchanged API)
+// MARK: ‑ View Creation Delegation (unchanged API)
 
 public extension PresentationHelper {
+    /// Creates a SwiftUI view for destination content using the configured factory.
+    ///
+    /// This method delegates to the view factory to create destination content,
+    /// maintaining the same API as before while separating navigation logic from view creation.
+    ///
+    /// - Parameter item: The navigation stack item to create a view for
+    /// - Returns: A SwiftUI view for the destination content
     func createDestinationContent(for item: NavigationStackItem) -> some View {
-        DestinationContentView(item: item)
+        AnyView(viewFactory.createDestinationContent(for: item))
     }
 
+    /// Creates a SwiftUI view for coordinator content using the configured factory.
+    ///
+    /// This method delegates to the view factory to create coordinator content,
+    /// maintaining the same API as before while separating navigation logic from view creation.
+    ///
+    /// - Parameter item: The navigation stack item containing a coordinator
+    /// - Returns: A SwiftUI view for the coordinator content
     func createCoordinatorContent(for item: NavigationStackItem) -> some View {
-        Group {
-            if item.presentable is (any NavigationCoordinatable) {
-                CoordinatorContentView(item: item)
-            } else {
-                DestinationContentView(item: item)
-            }
-        }
+        AnyView(viewFactory.createCoordinatorContent(for: item))
     }
-}
-
-private struct DestinationContentView: View {
-    let item: NavigationStackItem
-    var body: some View { item.presentableWrapper.createView() }
-}
-
-private struct CoordinatorContentView: View {
-    let item: NavigationStackItem
-    var body: some View { item.presentableWrapper.createView() }
 }
 
 // MARK: - Debug Extension

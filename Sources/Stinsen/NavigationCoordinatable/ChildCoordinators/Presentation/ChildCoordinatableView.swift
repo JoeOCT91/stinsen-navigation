@@ -105,7 +105,8 @@ struct ChildCoordinatableView<T: ChildCoordinatable>: View {
         // Check if we have a valid parent and are within bounds
         if let parent = coordinator.parent,
            let rootIndex = coordinator.rootIndex,
-           coordinator.canControl(coordinator.root) {
+           let safeRoot = coordinator.safeRoot,
+           coordinator.canControl(safeRoot) {
             // Render content based on current stack state
             VStack {
                 // Child coordinator's main content
@@ -182,8 +183,18 @@ struct ChildCoordinatableView<T: ChildCoordinatable>: View {
     /// Handles changes to the parent's navigation stack
     private func handleStackChange(_ newStack: [NavigationStackItem], coordinator: T) {
         // Check if our child coordinator is still in the stack
+        guard let safeRoot = coordinator.safeRoot else {
+            // If we don't have a root, we're not active
+            if isActive {
+                DispatchQueue.main.async {
+                    self.isActive = false
+                }
+            }
+            return
+        }
+
         let isStillActive = newStack.contains { item in
-            item.id == coordinator.root.id
+            item.id == safeRoot.id
         }
 
         // Update active state if needed
@@ -205,7 +216,8 @@ struct ChildCoordinatableView<T: ChildCoordinatable>: View {
         // For now, we just ensure we're respecting boundaries
 
         // Find our position in the new stack
-        guard let rootIndex = newStack.firstIndex(where: { $0.id == coordinator.root.id }) else {
+        guard let safeRoot = coordinator.safeRoot,
+              let rootIndex = newStack.firstIndex(where: { $0.id == safeRoot.id }) else {
             return
         }
 
@@ -228,8 +240,8 @@ extension ChildCoordinatable {
     /// Creates a ChildCoordinatableView for this coordinator
     /// Override the default view() implementation to return this specialized view
     func childView() -> some View {
-        // Use the root's keyPath hash as the ID for consistency
-        let viewId = root.keyPath
+        // Use the rootManager's keyPath as the ID for consistency
+        let viewId = rootManager.keyPath
         return ChildCoordinatableView(id: viewId, coordinator: self)
     }
 }
