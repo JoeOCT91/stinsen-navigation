@@ -156,6 +156,7 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
         // Access root only once here to minimize ensureRoot calls
         stack.safeRoot(with: coordinator).$item
             .dropFirst()
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.rootChangeId = UUID()
