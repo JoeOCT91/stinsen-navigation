@@ -109,15 +109,33 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
     // MARK: ‑ Internals
 
-    private var coordinator: T
+    public private(set) var coordinator: T
     private var cancellables = Set<AnyCancellable>()
     private var stack: NavigationStack<T> { coordinator.stack }
 
+    /// Router instance for navigation operations
+    public let router: NavigationRouter<T>
+
+    /// View factory for creating navigation views
+    private let viewFactory: NavigationViewFactory
+
+    /// Cached root to avoid repeated ensureRoot calls
+    private var _cachedRoot: NavigationRoot?
+
     // MARK: ‑ Init
 
-    public init(id _: Int, coordinator: T) {
+    public init(coordinator: T, viewFactory: NavigationViewFactory = DefaultNavigationViewFactory()) {
         self.coordinator = coordinator
-        coordinator.stack.ensureRoot(with: coordinator)
+        self.viewFactory = viewFactory
+
+        // Create router and store it in RouterStore
+        // Since id is always -1 for NavigationCoordinatableView, we can hardcode it
+        router = NavigationRouter(
+            id: -1,
+            coordinator: coordinator.routerStorable
+        )
+        RouterStore.shared.store(router: router)
+
         bindToStack()
     }
 
@@ -135,42 +153,23 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
             .store(in: &cancellables)
 
         // Notify SwiftUI when the *root* itself swaps out (e.g. tab change).
+        // Access root only once here to minimize ensureRoot calls
         stack.safeRoot(with: coordinator).$item
             .dropFirst()
+            .removeDuplicates()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.rootChangeId = UUID() }
+            .sink { [weak self] _ in
+                self?.rootChangeId = UUID()
+            }
             .store(in: &cancellables)
     }
 
     // MARK: ‑ Debug logging
 
     private func logStackState() {
-        let items = stack.value
-        print("🔄 Stack changed: \(items.count) items")
-        for (index, item) in items.enumerated() {
-            print("   \(index): \(item.presentationType) - \(String(describing: type(of: item.presentable)))")
-        }
-
-        if let modal = modalItem {
-            print("📱 Modal item: \(String(describing: type(of: modal.presentable)))")
-        }
-
-        if let fullScreen = fullScreenItem {
-            print("🖥️ Full-screen item: \(String(describing: type(of: fullScreen.presentable)))")
-        }
-
-        if let coordinator = pushedCoordinator {
-            print("🎯 Pushed NavigationCoordinator: \(String(describing: type(of: coordinator.presentable)))")
-        }
-
-        let childCoordinators = pushedCoordinators.filter(\.isChildCoordinator)
-        if !childCoordinators.isEmpty {
-            print("👶 Child coordinators: \(childCoordinators.map { String(describing: type(of: $0.presentable)) })")
-        }
-
-        print(
-            "🛤️ Push path: \(pushPath.count) items (includes \(pushedCoordinators.count) coordinators: \(pushedCoordinators.filter(\.isNavigationCoordinator).count) navigation + \(childCoordinators.count) child)"
-        )
+        #if DEBUG
+            logStackStateDebug()
+        #endif
     }
 
     // MARK: ‑ Dismissal hooks (call from SwiftUI)
@@ -183,18 +182,18 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
     public func handleCoordinatorDismissal(at index: Int) {
         let coordinators = pushedCoordinators
         guard index >= 0 && index < coordinators.count else {
-            print("⚠️ Invalid coordinator index \(index) for \(coordinators.count) coordinators")
+            logInvalidCoordinatorIndex(index: index, coordinatorCount: coordinators.count)
             return
         }
 
         let coordinatorToDismiss = coordinators[index]
         guard let stackIndex = stack.value.firstIndex(where: { $0.id == coordinatorToDismiss.id }) else {
-            print("⚠️ Coordinator not found in main stack")
+            logCoordinatorNotFoundInStack()
             return
         }
 
         let targetIndex = stackIndex - 1
-        print("🗑️ Dismissing coordinator at stack index \(stackIndex), target: \(targetIndex)")
+        logDismissingCoordinator(stackIndex: stackIndex, targetIndex: targetIndex)
 
         stack.dismissalAction[stackIndex]?()
         coordinator.popTo(targetIndex, nil)
@@ -208,12 +207,21 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
         let currentStackSize = stack.value.count
         let targetIndex = currentStackSize - removedCount - 1
 
-        print("🛤️ PushPath change: \(pushPath.count) -> \(newPath.count), removed: \(removedCount), stack: \(currentStackSize), target: \(targetIndex)")
+        logPushPathChange(
+            oldCount: pushPath.count,
+            newCount: newPath.count,
+            removedCount: removedCount,
+            stackSize: currentStackSize,
+            targetIndex: targetIndex
+        )
 
         // Ensure target index is valid
         guard targetIndex >= -1 && targetIndex < currentStackSize else {
-            print("⚠️ PresentationHelper: Invalid target index \(targetIndex) for stack size \(currentStackSize)")
-            print("   Stack items: \(stack.value.map { type(of: $0.presentable) })")
+            logInvalidTargetIndex(
+                targetIndex: targetIndex,
+                stackSize: currentStackSize,
+                stackItems: stack.value.map { type(of: $0.presentable) }
+            )
             return
         }
 
@@ -224,26 +232,30 @@ public final class PresentationHelper<T: NavigationCoordinatable>: ObservableObj
 
     private func dismiss(kind predicate: (NavigationStackItem) -> Bool) {
         guard let idx = stack.value.lastIndex(where: predicate) else {
-            print("🚫 Dismiss: No item found matching predicate")
+            logDismissNoItemFound()
             return
         }
 
         let currentStackSize = stack.value.count
         let targetIndex = idx - 1
 
-        print("🗑️ Dismiss: item at index \(idx), stack size: \(currentStackSize), target: \(targetIndex)")
-        print("   Item type: \(type(of: stack.value[idx].presentable))")
-        print("   Stack items: \(stack.value.enumerated().map { "\($0.offset): \(type(of: $0.element.presentable))" })")
+        logDismissOperation(
+            itemIndex: idx,
+            stackSize: currentStackSize,
+            targetIndex: targetIndex,
+            itemType: type(of: stack.value[idx].presentable),
+            stackItems: stack.value.enumerated().map { "\($0.offset): \(type(of: $0.element.presentable))" }
+        )
 
         // Ensure target index is valid
         guard targetIndex >= -1 else {
-            print("⚠️ PresentationHelper: Invalid dismiss target index \(targetIndex) for item at index \(idx)")
+            logInvalidDismissTargetIndex(targetIndex: targetIndex, itemIndex: idx)
             return
         }
 
         // Additional safety check - ensure the stack hasn't changed between calculation and execution
         guard idx < stack.value.count else {
-            print("⚠️ PresentationHelper: Stack changed during dismiss - item index \(idx) no longer valid for stack size \(stack.value.count)")
+            logStackChangedDuringDismiss(itemIndex: idx, stackSize: stack.value.count)
             return
         }
 
@@ -264,30 +276,136 @@ public extension NavigationStackItem {
     var isFullScreen: Bool { presentationType == .fullScreen }
 }
 
-// MARK: ‑ Lightweight view helpers (unchanged API)
+// MARK: ‑ View Creation Delegation (unchanged API)
 
 public extension PresentationHelper {
+    /// Creates a SwiftUI view for destination content using the configured factory.
+    ///
+    /// This method delegates to the view factory to create destination content,
+    /// maintaining the same API as before while separating navigation logic from view creation.
+    ///
+    /// - Parameter item: The navigation stack item to create a view for
+    /// - Returns: A SwiftUI view for the destination content
     func createDestinationContent(for item: NavigationStackItem) -> some View {
-        DestinationContentView(item: item)
+        AnyView(viewFactory.createDestinationContent(for: item))
     }
 
+    /// Creates a SwiftUI view for coordinator content using the configured factory.
+    ///
+    /// This method delegates to the view factory to create coordinator content,
+    /// maintaining the same API as before while separating navigation logic from view creation.
+    ///
+    /// - Parameter item: The navigation stack item containing a coordinator
+    /// - Returns: A SwiftUI view for the coordinator content
     func createCoordinatorContent(for item: NavigationStackItem) -> some View {
-        Group {
-            if item.presentable is (any NavigationCoordinatable) {
-                CoordinatorContentView(item: item)
-            } else {
-                DestinationContentView(item: item)
-            }
+        AnyView(viewFactory.createCoordinatorContent(for: item))
+    }
+}
+
+// MARK: - Debug Extension
+
+#if DEBUG
+    extension PresentationHelper {
+        /// Debug logging for navigation stack state
+        /// Only available in debug builds to avoid performance impact in production
+        func logStackStateDebug() {
+            let items = stack.value
+            let stackItems = items.enumerated().map { (index: $0, type: String(describing: $1.presentationType), presentable: String(describing: type(of: $1.presentable))) }
+
+            let modalItem = self.modalItem.map { String(describing: type(of: $0.presentable)) }
+            let fullScreenItem = self.fullScreenItem.map { String(describing: type(of: $0.presentable)) }
+            let pushedCoordinator = self.pushedCoordinator.map { String(describing: type(of: $0.presentable)) }
+
+            let childCoordinators = pushedCoordinators.filter(\.isChildCoordinator)
+            let childCoordinatorNames = childCoordinators.map { String(describing: type(of: $0.presentable)) }
+
+            let coordinatorCounts = (
+                total: pushedCoordinators.count,
+                navigation: pushedCoordinators.filter(\.isNavigationCoordinator).count,
+                child: childCoordinators.count
+            )
+
+            StinsenLogger.logStackState(
+                itemCount: items.count,
+                items: stackItems,
+                modalItem: modalItem,
+                fullScreenItem: fullScreenItem,
+                pushedCoordinator: pushedCoordinator,
+                childCoordinators: childCoordinatorNames,
+                pushPathCount: pushPath.count,
+                coordinatorCounts: coordinatorCounts
+            )
         }
     }
-}
+#endif
 
-private struct DestinationContentView: View {
-    let item: NavigationStackItem
-    var body: some View { item.presentableWrapper.createView() }
-}
+// MARK: - Logging Methods
 
-private struct CoordinatorContentView: View {
-    let item: NavigationStackItem
-    var body: some View { item.presentableWrapper.createView() }
+private extension PresentationHelper {
+    func logInvalidCoordinatorIndex(index: Int, coordinatorCount: Int) {
+        StinsenLogger.logWarning(
+            "Invalid coordinator index \(index) for \(coordinatorCount) coordinators",
+            category: .presentation
+        )
+    }
+
+    func logCoordinatorNotFoundInStack() {
+        StinsenLogger.logWarning(
+            "Coordinator not found in main stack",
+            category: .presentation
+        )
+    }
+
+    func logDismissingCoordinator(stackIndex: Int, targetIndex: Int) {
+        StinsenLogger.logPresentation(
+            "Dismissing coordinator",
+            type: "coordinator",
+            details: "stack index \(stackIndex), target: \(targetIndex)"
+        )
+    }
+
+    func logPushPathChange(oldCount: Int, newCount: Int, removedCount: Int, stackSize: Int, targetIndex: Int) {
+        StinsenLogger.logPresentation(
+            "PushPath change",
+            type: "navigation",
+            details: "\(oldCount) -> \(newCount), removed: \(removedCount), stack: \(stackSize), target: \(targetIndex)"
+        )
+    }
+
+    func logInvalidTargetIndex(targetIndex: Int, stackSize: Int, stackItems: [Any.Type]) {
+        StinsenLogger.logError(
+            "Invalid target index \(targetIndex) for stack size \(stackSize)",
+            category: .presentation,
+            context: "Stack items: \(stackItems)"
+        )
+    }
+
+    func logDismissNoItemFound() {
+        StinsenLogger.logWarning(
+            "Dismiss: No item found matching predicate",
+            category: .presentation
+        )
+    }
+
+    func logDismissOperation(itemIndex: Int, stackSize: Int, targetIndex: Int, itemType: Any.Type, stackItems: [String]) {
+        StinsenLogger.logPresentation(
+            "Dismiss",
+            type: "item",
+            details: "item at index \(itemIndex), stack size: \(stackSize), target: \(targetIndex), item type: \(itemType), stack items: \(stackItems)"
+        )
+    }
+
+    func logInvalidDismissTargetIndex(targetIndex: Int, itemIndex: Int) {
+        StinsenLogger.logError(
+            "Invalid dismiss target index \(targetIndex) for item at index \(itemIndex)",
+            category: .presentation
+        )
+    }
+
+    func logStackChangedDuringDismiss(itemIndex: Int, stackSize: Int) {
+        StinsenLogger.logError(
+            "Stack changed during dismiss - item index \(itemIndex) no longer valid for stack size \(stackSize)",
+            category: .presentation
+        )
+    }
 }

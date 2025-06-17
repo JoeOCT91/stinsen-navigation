@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Tab Lifecycle Protocol
+
 public protocol TabLifecycle {
     func tabWillAppear()
     func tabDidAppear()
@@ -10,6 +11,7 @@ public protocol TabLifecycle {
 }
 
 // MARK: - Enhanced TabCoordinatable Protocol
+
 /// The TabCoordinatable is used to represent a coordinator with a TabView
 public protocol TabCoordinatable: Coordinatable {
     typealias Route = TabRoute
@@ -25,7 +27,7 @@ public protocol TabCoordinatable: Coordinatable {
 
     /**
      Implement this function if you wish to customize the view on all views and child coordinators
-    
+
      - Parameter view: The input view.
      - Returns: The modified view.
      */
@@ -33,7 +35,7 @@ public protocol TabCoordinatable: Coordinatable {
 
     /**
      Searches the tab-bar for the first route that matches the route and makes it the active tab.
-    
+
      - Parameter route: The route that will be focused.
      */
     @discardableResult func focusFirst<Output: Coordinatable>(
@@ -42,7 +44,7 @@ public protocol TabCoordinatable: Coordinatable {
 
     /**
      Searches the tab-bar for the first route that matches the route and makes it the active tab.
-    
+
      - Parameter route: The route that will be focused.
      */
     @discardableResult func focusFirst<Output: View>(
@@ -65,17 +67,18 @@ public protocol TabCoordinatable: Coordinatable {
 }
 
 // MARK: - Default Implementations
-extension TabCoordinatable {
-    public var routerStorable: Self {
+
+public extension TabCoordinatable {
+    var routerStorable: Self {
         self
     }
 
-    public func dismissChild<T: Coordinatable>(coordinator: T, action: (() -> Void)?) {
-        print("Warning: dismissChild not implemented for TabCoordinatable")
+    func dismissChild<T: Coordinatable>(coordinator _: T, action: (() -> Void)?) {
+        StinsenLogger.logWarning("dismissChild not implemented for TabCoordinatable", category: .coordinator)
         action?()
     }
 
-    public var parent: ChildDismissable? {
+    var parent: ChildDismissable? {
         get {
             return child.parent
         }
@@ -98,7 +101,7 @@ extension TabCoordinatable {
         let items = descriptors.map { $0.makeItem(self) }
 
         // Use the safe method to set items
-        self.child.setAllItems(items)
+        child.setAllItems(items)
     }
 
     /// Flag to prevent multiple eager initialization calls.
@@ -125,7 +128,8 @@ extension TabCoordinatable {
         }
         set {
             objc_setAssociatedObject(
-                self, &hasEagerlyInitializedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                self, &hasEagerlyInitializedKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
         }
     }
 
@@ -185,17 +189,18 @@ extension TabCoordinatable {
         guard !hasForcedPresentableCreation else { return }
         hasForcedPresentableCreation = true
 
-        for index in 0..<child.tabCount {
+        for index in 0 ..< child.tabCount {
             if let item = child.item(at: index) {
-                let presentable = item.presentable  // Force lazy loading
-                print(
-                    "📱 TabCoordinatable: Created presentable at index \(index): \(type(of: presentable))"
+                let presentable = item.presentable // Force lazy loading
+                StinsenLogger.logDebug(
+                    "TabCoordinatable: Created presentable at index \(index): \(type(of: presentable))",
+                    category: .coordinator
                 )
             } else {
-                print("❌ TabCoordinatable: No item found at index \(index)")
+                StinsenLogger.logError("TabCoordinatable: No item found at index \(index)", category: .coordinator)
             }
         }
-        print("🎉 TabCoordinatable: Eager initialization completed")
+        StinsenLogger.logDebug("TabCoordinatable: Eager initialization completed", category: .coordinator)
     }
 
     /// Asynchronously initializes all tabs for immediate navigation availability.
@@ -206,11 +211,11 @@ extension TabCoordinatable {
 
     // MARK: - Default Customization
 
-    public func customize(_ view: AnyView) -> some View {
+    func customize(_ view: AnyView) -> some View {
         return view
     }
 
-    public func view() -> some View {
+    func view() -> some View {
         TabCoordinatableView(
             coordinator: self,
             customize: customize
@@ -219,31 +224,31 @@ extension TabCoordinatable {
 
     // MARK: - Tab Focus Methods
 
-    @discardableResult public func focusFirst<Output: Coordinatable>(
+    @discardableResult func focusFirst<Output: Coordinatable>(
         _ route: KeyPath<Self, Content<Self, Output>>
     ) -> Output {
         switch safeFocusFirst(route) {
-        case .success(let output):
+        case let .success(output):
             return output
-        case .failure(let error):
+        case let .failure(error):
             fatalError("TabCoordinatable: \(error.localizedDescription)")
         }
     }
 
-    @discardableResult public func focusFirst<Output: View>(
+    @discardableResult func focusFirst<Output: View>(
         _ route: KeyPath<Self, Content<Self, Output>>
     ) -> Self {
         switch safeFocusFirst(route) {
-        case .success(let result):
+        case let .success(result):
             return result
-        case .failure(let error):
+        case let .failure(error):
             fatalError("TabCoordinatable: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Safe focus methods (Public API for error handling)
 
-    public func safeFocusFirst<Output: Coordinatable>(
+    func safeFocusFirst<Output: Coordinatable>(
         _ route: KeyPath<Self, Content<Self, Output>>
     ) -> Result<Output, TabFocusError> {
         // Initialize tabs if needed
@@ -252,9 +257,8 @@ extension TabCoordinatable {
         }
 
         // Find the tab index
-        guard
-            let descriptors = child.routeDescriptors,
-            let index = descriptors.firstIndex(where: { $0.matches(route) })
+        guard let descriptors = child.routeDescriptors,
+              let index = descriptors.firstIndex(where: { $0.matches(route) })
         else {
             return .failure(.tabNotFound)
         }
@@ -278,7 +282,7 @@ extension TabCoordinatable {
         }
     }
 
-    public func safeFocusFirst<Output: View>(
+    func safeFocusFirst<Output: View>(
         _ route: KeyPath<Self, Content<Self, Output>>
     ) -> Result<Self, TabFocusError> {
         // Initialize tabs if needed
@@ -287,9 +291,8 @@ extension TabCoordinatable {
         }
 
         // Find the tab index
-        guard
-            let descriptors = child.routeDescriptors,
-            let index = descriptors.firstIndex(where: { $0.matches(route) })
+        guard let descriptors = child.routeDescriptors,
+              let index = descriptors.firstIndex(where: { $0.matches(route) })
         else {
             return .failure(.tabNotFound)
         }
@@ -302,8 +305,9 @@ extension TabCoordinatable {
 }
 
 // MARK: - Tab Lifecycle Support
-extension TabCoordinatable where Self: TabLifecycle {
-    public func notifyTabLifecycle(from oldIndex: Int?, to newIndex: Int) {
+
+public extension TabCoordinatable where Self: TabLifecycle {
+    func notifyTabLifecycle(from oldIndex: Int?, to newIndex: Int) {
         if let oldIndex = oldIndex, oldIndex != newIndex {
             tabWillDisappear()
         }

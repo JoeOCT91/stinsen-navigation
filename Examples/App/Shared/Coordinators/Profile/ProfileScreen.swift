@@ -10,20 +10,30 @@ struct ProfileScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack {
-                switch AuthenticationService.shared.status {
-                case .authenticated(let user):
-                    InfoText("Currently logged in as \(user.username)")
-                case .unauthenticated:
-                    EmptyView() // shouldn't happen
-                }
+        GeometryReader { geometryProxy in
+            ScrollView {
+                VStack(spacing: 16) {
+                    Spacer()
 
-                Spacer(minLength: 16)
-                RoundedButton("Logout") {
-                    AuthenticationService.shared.status = .unauthenticated
+                    switch AuthenticationService.shared.status {
+                    case .authenticated(let user):
+                        InfoText("Currently logged in as \(user.username)")
+                    case .unauthenticated:
+                        EmptyView() // shouldn't happen
+                    }
+
+                    RoundedButton("Logout") {
+                        AuthenticationService.shared.status = .unauthenticated
+                    }
+
+                    Spacer()
                 }
+                .padding()
+                .frame(minHeight: geometryProxy.size.height)
             }
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.large)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }

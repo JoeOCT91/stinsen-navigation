@@ -16,6 +16,6 @@ final class TodosCoordinator: NavigationCoordinatable {
     }
 
     deinit {
-        print("Deinit TodosCoordinator")
+        print("De-init TodosCoordinator")
     }
 }

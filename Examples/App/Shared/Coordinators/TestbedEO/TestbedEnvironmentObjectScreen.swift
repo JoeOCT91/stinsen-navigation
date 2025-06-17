@@ -21,9 +21,9 @@ struct TestbedEnvironmentObjectScreen: View {
                         testbed.route(to: \.pushScreen)
                     }
 
-//                    RoundedButton("Cover screen") {
-//                        testbed.route(to: \.fullScreenScreen)
-//                    }
+                    RoundedButton("Cover screen") {
+                        testbed.route(to: \.fullScreenScreen)
+                    }
 
                     RoundedButton("Modal coordinator") {
                         testbed.route(to: \.modalCoordinator)
@@ -37,9 +37,9 @@ struct TestbedEnvironmentObjectScreen: View {
                         testbed.route(to: \.testbedChild, 1)
                     }
 
-//                    RoundedButton("Cover coordinator") {
-//                        testbed.route(to: \.fullScreenCoordinator)
-//                    }
+                    RoundedButton("Cover coordinator") {
+                        testbed.route(to: \.fullScreenCoordinator)
+                    }
 
                     RoundedButton("Dismiss me!") {
                         testbed.dismissCoordinator {

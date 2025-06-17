@@ -29,6 +29,12 @@ final class AuthenticatedCoordinator: TabCoordinatable {
         )
     }
 
+    func customize(_ view: AnyView) -> some View {
+        view
+            .accentColor(Color("AccentColor"))
+
+    }
+
     deinit {
         print("De-init AuthenticatedCoordinator")
     }

@@ -4,8 +4,6 @@ import SwiftUI
 import Stinsen
 
 final class TestbedEnvironmentObjectCoordinator: NavigationCoordinatable {
-    var stack = NavigationStack(initial: \TestbedEnvironmentObjectCoordinator.start)
-
     @Root(makeStart) var start
 
     @NavigationRoute(.modal) var modalScreen = makeModalScreen
@@ -15,6 +13,13 @@ final class TestbedEnvironmentObjectCoordinator: NavigationCoordinatable {
     @NavigationRoute(.push) var pushCoordinator = makePushCoordinator
     @NavigationRoute(.fullScreen) var fullScreenCoordinator = makeFullScreenCoordinator
     @NavigationRoute(.push) var testbedChild = makeTestbedChild
+
+    var stack = NavigationStack(initial: \TestbedEnvironmentObjectCoordinator.start)
+    var embeddedInStack: Bool
+
+    init(embeddedInStack: Bool) {
+        self.embeddedInStack = embeddedInStack
+    }
 
     deinit {
         print("Deinit TestbedEnvironmentObjectCoordinator")

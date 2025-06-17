@@ -34,43 +34,16 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// Manages all navigation presentation state and logic
     @StateObject private var presentationHelper: PresentationHelper<T>
 
-    /// Unique identifier for this view instance
-    private let id: Int
-
-    /// The coordinator that this view represents
-    private var coordinator: T
-
-    /// Router instance for navigation operations
-    private let router: NavigationRouter<T>
-
-    /// Initializes a new NavigationCoordinatableView for the specified coordinator.
+    /// Initializes a new NavigationCoordinatableView with a presentation helper.
     ///
-    /// Sets up the presentation helper, router, and ensures the navigation stack
-    /// has a proper root configuration. The router is automatically stored in
-    /// the global RouterStore for access by child views.
+    /// The presentation helper should be created by the caller and passed in,
+    /// allowing for better control over the helper's lifecycle and configuration.
     ///
     /// - Parameters:
-    ///   - id: Unique identifier for this view instance (-1 for main coordinator root)
-    ///   - coordinator: The coordinator to create a view for
-    ///
-    /// ## ID Convention
-    /// - `-1`: Main coordinator root view
-    /// - `>= 0`: Child view content at specific stack index
-    init(id: Int, coordinator: T) {
-        self.id = id
-        self.coordinator = coordinator
-
-        router = NavigationRouter(
-            id: id,
-            coordinator: coordinator.routerStorable
-        )
-
-        // Initialize StateObject
-        _presentationHelper = StateObject(
-            wrappedValue: PresentationHelper(id: id, coordinator: coordinator)
-        )
-
-        RouterStore.shared.store(router: router)
+    ///   - helper: The presentation helper that manages navigation state
+    init(helper: PresentationHelper<T>) {
+        // Initialize StateObject with the provided helper
+        _presentationHelper = StateObject(wrappedValue: helper)
     }
 
     /// The main view body that renders the navigation hierarchy.
@@ -79,7 +52,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// modal and full-screen presentations through the PresentationHelper.
     var body: some View {
         contentView
-            .environmentObject(router)
+            .environmentObject(presentationHelper.router)
             .sheet(
                 item: presentationHelper.modalBinding,
                 onDismiss: {
@@ -87,7 +60,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                 }
             ) { modalItem in
                 createPresentationContent(for: modalItem)
-                    .environmentObject(router)
+                    .environmentObject(presentationHelper.router)
             }
             // Handle full-screen presentations (iOS only, falls back to sheet on other platforms)
             .fullScreenCoverIfAvailable(
@@ -97,7 +70,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
                 }
             ) { fullScreenItem in
                 createPresentationContent(for: fullScreenItem)
-                    .environmentObject(router)
+                    .environmentObject(presentationHelper.router)
             }
     }
 
@@ -106,7 +79,7 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
     /// The main content view that conditionally wraps content in NavigationStack
     @ViewBuilder
     private var contentView: some View {
-        if coordinator.embeddedInStack {
+        if presentationHelper.coordinator.embeddedInStack {
             SwiftUI.NavigationStack(path: presentationHelper.pushPathBinding) {
                 navigationStackContent
             }
@@ -153,20 +126,20 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
             if item.isNavigationCoordinator {
                 // NavigationCoordinatable: Create independent coordinator view
                 presentationHelper.createCoordinatorContent(for: item)
-                    .environmentObject(router)
+                    .environmentObject(presentationHelper.router)
             } else if item.isChildCoordinator {
                 // ChildCoordinatable: Create view that shares this coordinator's stack
                 presentationHelper.createDestinationContent(for: item)
-                    .environmentObject(router)
+                    .environmentObject(presentationHelper.router)
             } else {
                 // Fallback for other coordinator types
                 presentationHelper.createCoordinatorContent(for: item)
-                    .environmentObject(router)
+                    .environmentObject(presentationHelper.router)
             }
         } else {
             // Regular view
             presentationHelper.createDestinationContent(for: item)
-                .environmentObject(router)
+                .environmentObject(presentationHelper.router)
         }
     }
 
@@ -176,33 +149,27 @@ struct NavigationCoordinatableView<T: NavigationCoordinatable>: View {
         // Check if this is a coordinator or a regular view
         if item.presentable is any Coordinatable {
             presentationHelper.createCoordinatorContent(for: item)
-                .environmentObject(router)
+                .environmentObject(presentationHelper.router)
         } else {
             presentationHelper.createDestinationContent(for: item)
-                .environmentObject(router)
+                .environmentObject(presentationHelper.router)
         }
     }
 
     // MARK: - Content Views
 
-    /// Determines the appropriate root content based on the view's role.
+    /// Determines the appropriate root content for the coordinator.
     ///
-    /// Renders different content depending on whether this is the main coordinator
-    /// root view (id == -1) or a child view at a specific stack index.
-    ///
-    /// ## Content Types
-    /// - **Main Root** (id == -1): Coordinator's customized root view
-    /// - **Child View** (id >= 0): Current view content at stack index
+    /// Renders the coordinator's customized root view using the safe root access
+    /// to ensure proper initialization.
     @ViewBuilder
     private var rootContent: some View {
-        if id == -1 {
-            // Main coordinator root view
-            // Ensure root is available before rendering
-            let rootItem = coordinator.stack.safeRoot(with: coordinator).item
-            coordinator.customize(
-                AnyView(rootItem.child.view())
-            )
-        }
+        // Main coordinator root view
+        // Use safeRoot to ensure root is available before rendering
+        let rootItem = presentationHelper.coordinator.stack.safeRoot(with: presentationHelper.coordinator).item
+        presentationHelper.coordinator.customize(
+            AnyView(rootItem.child.view())
+        )
     }
 }
 

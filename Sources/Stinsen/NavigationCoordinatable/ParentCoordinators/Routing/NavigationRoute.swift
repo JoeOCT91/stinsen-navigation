@@ -402,3 +402,150 @@ public extension Root where Output: ChildCoordinatable {
         transition = Transition(type: RootSwitch(), closure: closureValue)
     }
 }
+
+// MARK: - ChildCoordinatable Extensions for NavigationRoute
+
+/// Extensions to allow child coordinators to use @NavigationRoute with their parent's type
+public extension NavigationRoute where T: NavigationCoordinatable {
+    // MARK: - Child Coordinator Presentation Routes
+
+    /// Presentation route for child coordinators - View without input (Void)
+    /// Usage: @NavigationRoute<ParentType, Presentation, Void, AnyView>(.push) var route = makeView
+    init<ViewOutput: View>(
+        wrappedValue: @escaping () -> ViewOutput,
+        _ presentation: PresentationType
+    ) where U == Presentation, Input == Void, Output == AnyView {
+        let closureValue: (T) -> (Input) -> Output = { _ in { (_: Input) in AnyView(wrappedValue()) } }
+        closure = closureValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: closureValue)
+    }
+
+    /// Presentation route for child coordinators - View with input
+    /// Usage: @NavigationRoute<ParentType, Presentation, InputType, AnyView>(.push) var route = makeView
+    init<ViewOutput: View>(
+        wrappedValue: @escaping (Input) -> ViewOutput,
+        _ presentation: PresentationType
+    ) where U == Presentation, Output == AnyView {
+        let closureValue: (T) -> (Input) -> Output = { _ in { input in AnyView(wrappedValue(input)) } }
+        closure = closureValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: closureValue)
+    }
+
+    /// Presentation route for child coordinators - Coordinatable without input (Void)
+    /// Usage: @NavigationRoute<ParentType, Presentation, Void, ChildCoordinator>(.push) var route = makeCoordinator
+    init(
+        wrappedValue: @escaping () -> Output,
+        _ presentation: PresentationType
+    ) where U == Presentation, Input == Void, Output: Coordinatable {
+        let closureValue: (T) -> (Input) -> Output = { _ in { (_: Input) in wrappedValue() } }
+        closure = closureValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: closureValue)
+    }
+
+    /// Presentation route for child coordinators - Coordinatable with input
+    /// Usage: @NavigationRoute<ParentType, Presentation, InputType, ChildCoordinator>(.push) var route = makeCoordinator
+    init(
+        wrappedValue: @escaping (Input) -> Output,
+        _ presentation: PresentationType
+    ) where U == Presentation, Output: Coordinatable {
+        let closureValue: (T) -> (Input) -> Output = { _ in wrappedValue }
+        closure = closureValue
+        routeType = Presentation(type: presentation)
+        self.wrappedValue = Transition(type: routeType, closure: closureValue)
+    }
+}
+
+/// Extension to add routing capabilities to child coordinators using NavigationRoute
+public extension ChildCoordinatable {
+    /// Routes using a NavigationRoute transition from a child coordinator
+    /// This allows child coordinators to use @NavigationRoute with their parent's type
+    @discardableResult
+    func route<U: RouteType, Input, Output: ViewPresentable>(
+        to route: Transition<Parent, U, Input, Output>,
+        _ input: Input
+    ) -> Self {
+        guard let parent = parent else {
+            print("Warning: Cannot route - parent coordinator is nil")
+            return self
+        }
+
+        // Use the transition to create the output
+        let output = route.using(coordinator: parent, input: input)
+
+        // Create NavigationStackItem and add to parent's stack
+        let keyPath = ObjectIdentifier(type(of: route.closure)).hashValue
+
+        if let presentation = route.type as? Presentation {
+            let stackItem = NavigationStackItem(
+                presentationType: presentation.type,
+                presentable: output,
+                keyPath: keyPath,
+                input: input
+            )
+
+            // Set parent relationship for coordinators
+            if let coordinator = output as? any Coordinatable {
+                coordinator.parent = parent
+            }
+
+            // Add to parent's stack
+            parent.stack.value.append(stackItem)
+        }
+
+        return self
+    }
+
+    /// Routes using a NavigationRoute transition without input
+    @discardableResult
+    func route<U: RouteType, Output: ViewPresentable>(
+        to route: Transition<Parent, U, Void, Output>
+    ) -> Self {
+        return self.route(to: route, ())
+    }
+
+    /// Routes using a NavigationRoute transition and returns the coordinator
+    @discardableResult
+    func route<U: RouteType, Input, Output: Coordinatable>(
+        to route: Transition<Parent, U, Input, Output>,
+        _ input: Input
+    ) -> Output {
+        guard let parent = parent else {
+            print("Warning: Cannot route - parent coordinator is nil")
+            return route.using(coordinator: parent!, input: input) // This will crash, but it's better than returning nil
+        }
+
+        // Use the transition to create the output
+        let output = route.using(coordinator: parent, input: input)
+
+        // Create NavigationStackItem and add to parent's stack
+        let keyPath = ObjectIdentifier(type(of: route.closure)).hashValue
+
+        if let presentation = route.type as? Presentation {
+            let stackItem = NavigationStackItem(
+                presentationType: presentation.type,
+                presentable: output,
+                keyPath: keyPath,
+                input: input
+            )
+
+            // Set parent relationship
+            output.parent = parent
+
+            // Add to parent's stack
+            parent.stack.value.append(stackItem)
+        }
+
+        return output
+    }
+
+    /// Routes using a NavigationRoute transition without input and returns the coordinator
+    @discardableResult
+    func route<U: RouteType, Output: Coordinatable>(
+        to route: Transition<Parent, U, Void, Output>
+    ) -> Output {
+        return self.route(to: route, ())
+    }
+}

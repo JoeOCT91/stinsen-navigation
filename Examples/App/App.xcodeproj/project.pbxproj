@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		864BFF662E00736C00580054 /* TestbedChildCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864BFF642E00736C00580054 /* TestbedChildCoordinator.swift */; };
+		864BFF672E00736C00580054 /* TestbedChildScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864BFF652E00736C00580054 /* TestbedChildScreen.swift */; };
 		EB24976C26C9194700A4C2D4 /* Stinsen in Frameworks */ = {isa = PBXBuildFile; productRef = EB24976B26C9194700A4C2D4 /* Stinsen */; };
 		EB428487272AA20100911C54 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB428432272AA20100911C54 /* Main.swift */; };
 		EB4284AF272AA20100911C54 /* HomeCoordinator+Factory.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB428442272AA20100911C54 /* HomeCoordinator+Factory.swift */; };
@@ -52,6 +54,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		864BFF642E00736C00580054 /* TestbedChildCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestbedChildCoordinator.swift; sourceTree = "<group>"; };
+		864BFF652E00736C00580054 /* TestbedChildScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestbedChildScreen.swift; sourceTree = "<group>"; };
 		EB235D2225E8D502008BEE0A /* Stinsen.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Stinsen.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB42842E272AA20100911C54 /* Main.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 		EB42842F272AA20100911C54 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -236,6 +240,8 @@
 		EB42844A272AA20100911C54 /* TestbedEO */ = {
 			isa = PBXGroup;
 			children = (
+				864BFF642E00736C00580054 /* TestbedChildCoordinator.swift */,
+				864BFF652E00736C00580054 /* TestbedChildScreen.swift */,
 				EB42844B272AA20100911C54 /* TestbedEnvironmentObjectScreen.swift */,
 				EB42844C272AA20100911C54 /* TestbedEnvironmentObjectCoordinator+Factory.swift */,
 				EB42844D272AA20100911C54 /* TestbedEnvironmentObjectCoordinator.swift */,
@@ -507,6 +513,8 @@
 				EB428535272AA20100911C54 /* RoundedButton.swift in Sources */,
 				EB4284C7272AA20100911C54 /* UserRegistrationScreen.swift in Sources */,
 				EB428487272AA20100911C54 /* Main.swift in Sources */,
+				864BFF662E00736C00580054 /* TestbedChildCoordinator.swift in Sources */,
+				864BFF672E00736C00580054 /* TestbedChildScreen.swift in Sources */,
 				EB428507272AA20100911C54 /* TodosScreen.swift in Sources */,
 				EB4284F7272AA20100911C54 /* LoginScreen.swift in Sources */,
 				EB428539272AA20100911C54 /* StinsenApp.swift in Sources */,
