@@ -1,3 +1,5 @@
+> **No longer maintained.** I've archived this copy of Stinsen and keep it here for anyone still using it. I'm now building [Waypoint](https://waypoint-docs-9zj.pages.dev/), typed and testable navigation for iOS. More about my work at [yousefmohamed.com](https://yousefmohamed.com).
+
 <p align="center">
   <img src="./Images/wordmark.svg" alt="Stinsen">
 </p>
